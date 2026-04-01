@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PAID
+  AWAITING_PHOTO
+  PHOTO_RECEIVED
+  RENDERING
+  AWAITING_APPROVAL
+  APPROVED
+  DELIVERED
+  CLOSED
+  NEEDS_MANUAL_ATTENTION
+}
+
+enum RenderJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  REJECTED
+}
+
+enum ArtifactKind {
+  SOURCE
+  PREVIEW
+  FINAL_PNG
+  FINAL_PDF
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  OPENED
+  EXPIRED
+}
+
+enum MessageChannel {
+  ETSY
+  EMAIL
+  INTERNAL
+}
+
+model Order {
+  id                    String           @id @default(cuid())
+  shopId                String
+  receiptId             String           @unique
+  eventId               String?          @unique
+  etsyOrderCreatedAt    DateTime
+  buyerName             String
+  buyerEmail            String?
+  listingId             String?
+  personalization       String?
+  pilotListingEligible  Boolean          @default(false)
+  pilotListingMatched   Boolean          @default(false)
+  intakeSource          String?          @default("etsy_webhook")
+  resourceUrl           String?
+  status                OrderStatus      @default(PAID)
+  uploadToken           String           @unique
+  uploadTokenExpiresAt  DateTime
+  downloadToken         String?          @unique
+  downloadTokenExpiresAt DateTime?
+  photoReceivedAt       DateTime?
+  approvedAt            DateTime?
+  deliveredAt           DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  items                 OrderItem[]
+  uploads               CustomerUpload[]
+  renderJobs            RenderJob[]
+  artifacts             Artifact[]
+  messageEvents         MessageEvent[]
+  deliveryEvents        DeliveryEvent[]
+  auditLog              AuditLog[]
+  webhookDeliveries     WebhookDelivery[]
+}
+
+model OrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  transactionId String   @unique
+  title         String
+  quantity      Int      @default(1)
+  priceAmount   Int?
+  currencyCode  String?
+  createdAt     DateTime @default(now())
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model CustomerUpload {
+  id           String   @id @default(cuid())
+  orderId      String
+  petName      String
+  notes        String?
+  originalName String
+  mimeType     String
+  storageKey   String
+  width        Int?
+  height       Int?
+  blurScore    Float?
+  createdAt    DateTime @default(now())
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model RenderJob {
+  id             String          @id @default(cuid())
+  orderId        String
+  customerUploadId String
+  status         RenderJobStatus @default(QUEUED)
+  attempt        Int             @default(1)
+  failureReason  String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime        @default(now())
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Artifact {
+  id          String       @id @default(cuid())
+  orderId     String
+  renderJobId String?
+  kind        ArtifactKind
+  version     Int          @default(1)
+  storageKey  String
+  mimeType    String
+  createdAt   DateTime     @default(now())
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model MessageEvent {
+  id        String         @id @default(cuid())
+  orderId   String
+  channel   MessageChannel
+  eventType String
+  subject   String?
+  body      String
+  createdAt DateTime       @default(now())
+  order     Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model DeliveryEvent {
+  id          String         @id @default(cuid())
+  orderId      String
+  status      DeliveryStatus @default(PENDING)
+  deliveryUrl String
+  email       String?
+  openedAt    DateTime?
+  createdAt   DateTime       @default(now())
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  orderId    String
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model EtsyConnection {
+  id              String   @id @default(cuid())
+  shopId          String   @unique
+  accessToken     String
+  refreshToken    String
+  tokenType       String
+  scope           String
+  accessExpiresAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model WebhookDelivery {
+  id                String   @id @default(cuid())
+  externalWebhookId String   @unique
+  eventType         String
+  receivedAt        DateTime @default(now())
+  resourceUrl       String?
+  payload           Json
+  orderId           String?
+  order             Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+}
