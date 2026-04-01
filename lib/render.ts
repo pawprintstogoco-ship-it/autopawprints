@@ -85,15 +85,15 @@ export async function renderPortrait({
 }
 
 async function buildPosterPng(portraitBase: Buffer, petName: string) {
-  const artWidth = 1360;
-  const artHeight = 1700;
+  const artWidth = 1320;
+  const artHeight = 1880;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 500;
+  const artTop = 560;
   const title = buildTitleLayout(petName);
 
   const portrait = await sharp(portraitBase)
     .resize(artWidth, artHeight, {
-      fit: "contain",
+      fit: "cover",
       position: "attention",
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
@@ -103,13 +103,8 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#aa8764" flood-opacity="0.12"/>
-        </filter>
       </defs>
       <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#f3e6d6"/>
-      <rect x="112" y="112" width="${FINAL_WIDTH - 224}" height="${FINAL_HEIGHT - 224}" rx="40" fill="#f3e6d6"/>
-      <rect x="${artLeft - 14}" y="${artTop - 14}" width="${artWidth + 28}" height="${artHeight + 28}" rx="24" fill="#f7eee3" filter="url(#shadow)"/>
       <text
         x="${FINAL_WIDTH / 2}"
         y="${title.firstLineY}"
