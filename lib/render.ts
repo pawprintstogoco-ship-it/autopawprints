@@ -88,7 +88,7 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   const artWidth = 1460;
   const artHeight = 2020;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 520;
+  const artTop = 560;
   const title = buildTitleLayout(petName);
 
   const portrait = await sharp(portraitBase)
@@ -97,14 +97,17 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
       position: "attention",
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
+    .modulate({
+      saturation: 0.92,
+      brightness: 1.01
+    })
+    .normalise()
     .png()
     .toBuffer();
 
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-      </defs>
-      <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#f3e6d6"/>
+      <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#ffffff"/>
       <text
         x="${FINAL_WIDTH / 2}"
         y="${title.firstLineY}"
@@ -121,15 +124,6 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
         font-family="Georgia, 'Times New Roman', serif"
         letter-spacing="${title.secondLineLetterSpacing}"
         fill="#6f5037">${title.secondLine}</text>` : ""}
-      <text
-        x="${FINAL_WIDTH / 2}"
-        y="${title.subtitleY}"
-        text-anchor="middle"
-        font-size="24"
-        font-family="Arial, Helvetica, sans-serif"
-        letter-spacing="7"
-        fill="#a27b59">CUSTOM PET PORTRAIT</text>
-      <rect x="180" y="160" width="${FINAL_WIDTH - 360}" height="2" fill="#d5b89a" opacity="0.72"/>
     </svg>
   `);
 
@@ -184,7 +178,7 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "Keep the same pet identity, fur markings, face shape, and expression recognizable.",
       "Remove the original photo background completely and return only the pet as the subject.",
       "Create a clean stylized illustrated portrait with smooth simplified shapes and crisp edges, similar to premium vector-inspired Etsy pet art.",
-      "Use soft painterly color blocks, clear fur definition, and an elegant polished finish.",
+      "Use soft painterly color blocks, clear fur definition, an elegant polished finish, and natural neutral color balance.",
       "Frame the pet as a centered bust or upper-body portrait facing forward or in natural three-quarter view.",
       "Do not include any room background, scenery, props, collars, frames, shadows on the floor, furniture, extra animals, or any text.",
       "The final image should be just the isolated pet on a transparent background."
@@ -243,9 +237,9 @@ async function createFallbackPortrait(source: Buffer) {
     .resize(1024, 1536, {
       fit: "contain",
       position: "attention",
-      background: "#f3e7d7"
+      background: "#ffffff"
     })
-    .modulate({ saturation: 0.92, brightness: 1.02 })
+    .modulate({ saturation: 0.92, brightness: 1.01 })
     .normalise()
     .png()
     .toBuffer();
@@ -273,9 +267,9 @@ function buildTitleLayout(name: string) {
       secondLineFontSize: 0,
       letterSpacing: displayName.length > 10 ? 4 : 6,
       secondLineLetterSpacing: 0,
-      firstLineY: 248,
+      firstLineY: 290,
       secondLineY: 0,
-      subtitleY: 320
+      subtitleY: 0
     };
   }
 
@@ -290,9 +284,9 @@ function buildTitleLayout(name: string) {
     secondLineFontSize: 94,
     letterSpacing: 3,
     secondLineLetterSpacing: 3,
-    firstLineY: 224,
-    secondLineY: 322,
-    subtitleY: 390
+    firstLineY: 250,
+    secondLineY: 360,
+    subtitleY: 0
   };
 }
 
