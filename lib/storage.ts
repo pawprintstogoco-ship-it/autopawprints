@@ -27,17 +27,19 @@ function getMimeTypeFromKey(key: string) {
 }
 
 export async function putBuffer(key: string, buffer: Buffer, mimeType?: string) {
+  const bytes = new Uint8Array(buffer);
+
   await prisma.binaryObject.upsert({
     where: {
       storageKey: key
     },
     update: {
-      data: buffer,
+      data: bytes,
       mimeType: mimeType ?? getMimeTypeFromKey(key)
     },
     create: {
       storageKey: key,
-      data: buffer,
+      data: bytes,
       mimeType: mimeType ?? getMimeTypeFromKey(key)
     }
   });
