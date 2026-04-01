@@ -431,7 +431,12 @@ export async function storeCustomerUpload({
         status: RenderJobStatus.QUEUED
       }
     });
-    await enqueueRenderJob(renderJob.id);
+
+    if (shouldRunInlineJobs()) {
+      await processRenderJob(renderJob.id);
+    } else {
+      await enqueueRenderJob(renderJob.id);
+    }
   }
 
   return { upload, order };
@@ -571,7 +576,12 @@ export async function approveOrder(orderId: string) {
     }
   });
 
-  await enqueueDelivery(orderId);
+  if (shouldRunInlineJobs()) {
+    await deliverApprovedOrder(orderId);
+  } else {
+    await enqueueDelivery(orderId);
+  }
+
   return order;
 }
 
@@ -716,4 +726,8 @@ export async function recordDeliveryOpen(orderId: string) {
 
 function sanitizeFileName(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+}
+
+function shouldRunInlineJobs() {
+  return process.env.VERCEL === "1";
 }

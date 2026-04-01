@@ -186,3 +186,12 @@ model WebhookDelivery {
   orderId           String?
   order             Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
 }
+
+model BinaryObject {
+  id        String   @id @default(cuid())
+  storageKey String  @unique
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

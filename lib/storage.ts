@@ -1,34 +1,65 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { requireEnv } from "@/lib/env";
+import { prisma } from "@/lib/prisma";
 
 type StoredFile = {
   key: string;
-  absolutePath: string;
+  absolutePath: string | null;
 };
 
-function resolveStoragePath(key: string) {
-  const { STORAGE_ROOT } = requireEnv();
-  return path.resolve(STORAGE_ROOT, key);
-}
-
 export async function ensureStoragePath(key: string) {
-  const absolutePath = resolveStoragePath(key);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  return absolutePath;
+  return key;
 }
 
-export async function putBuffer(key: string, buffer: Buffer) {
-  const absolutePath = await ensureStoragePath(key);
-  await writeFile(absolutePath, buffer);
+function getMimeTypeFromKey(key: string) {
+  if (key.endsWith(".png")) {
+    return "image/png";
+  }
+
+  if (key.endsWith(".pdf")) {
+    return "application/pdf";
+  }
+
+  if (key.endsWith(".jpg") || key.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+
+  return "application/octet-stream";
+}
+
+export async function putBuffer(key: string, buffer: Buffer, mimeType?: string) {
+  await prisma.binaryObject.upsert({
+    where: {
+      storageKey: key
+    },
+    update: {
+      data: buffer,
+      mimeType: mimeType ?? getMimeTypeFromKey(key)
+    },
+    create: {
+      storageKey: key,
+      data: buffer,
+      mimeType: mimeType ?? getMimeTypeFromKey(key)
+    }
+  });
+
   return {
     key,
-    absolutePath
+    absolutePath: null
   } satisfies StoredFile;
 }
 
 export async function getBuffer(key: string) {
-  return readFile(resolveStoragePath(key));
+  const object = await prisma.binaryObject.findUnique({
+    where: {
+      storageKey: key
+    }
+  });
+
+  if (!object) {
+    throw new Error(`Storage object not found: ${key}`);
+  }
+
+  return Buffer.from(object.data);
 }
 
 export function getPublicFileUrl(key: string) {

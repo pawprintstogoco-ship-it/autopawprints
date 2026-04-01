@@ -70,9 +70,10 @@ npm run seed:demo
 
 ## Notes
 
-- Storage defaults to the local filesystem under `STORAGE_ROOT`.
+- Storage is persisted in the database for the hosted demo flow, avoiding Vercel filesystem write errors.
 - Delivery is portal-first in v1. Buyers upload through the portal and return to a secure download link after approval.
 - Etsy conversation follow-up remains manual in v1; reminder jobs create internal dashboard alerts instead of sending thread replies.
 - Etsy OAuth uses the documented PKCE flow and stores the seller token pair in the database.
 - The webhook route expects Etsy-style `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers and fetches the receipt resource from Etsy before creating the order.
 - The pilot is intentionally limited to `ETSY_PILOT_LISTING_ID`; non-pilot receipts are captured and flagged for manual handling.
+- On Vercel, render and delivery jobs run inline for the demo flow so uploads can complete without a separate worker deployment.
