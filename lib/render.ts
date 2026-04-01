@@ -128,28 +128,21 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
 
   const titleOverlay = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      <style>
-        .title {
-          font-family: Arial, Helvetica, sans-serif;
-          font-weight: 700;
-          fill: #4a3727;
-        }
-      </style>
       <text
-        class="title"
         x="${FINAL_WIDTH / 2}"
         y="${title.firstLineY}"
         text-anchor="middle"
         font-size="${title.fontSize}"
-        letter-spacing="${title.letterSpacing}"
+        font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
+        font-weight="700"
         fill="#4a3727">${title.firstLine}</text>
       ${title.secondLine ? `<text
-        class="title"
         x="${FINAL_WIDTH / 2}"
         y="${title.secondLineY}"
         text-anchor="middle"
         font-size="${title.secondLineFontSize}"
-        letter-spacing="${title.secondLineLetterSpacing}"
+        font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
+        font-weight="700"
         fill="#4a3727">${title.secondLine}</text>` : ""}
     </svg>
   `);
