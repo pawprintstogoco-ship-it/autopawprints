@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
@@ -24,7 +23,6 @@ export type RenderOutput = {
 const FINAL_WIDTH = 1800;
 const FINAL_HEIGHT = 2400;
 const TITLE_SAFE_HEIGHT = 430;
-let embeddedTitleFontDataUri: string | null = null;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -128,37 +126,15 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
       <rect width="${FINAL_WIDTH}" height="${TITLE_SAFE_HEIGHT}" fill="#ffffff"/>
     </svg>
   `);
-
-  const titleOverlay = Buffer.from(`
-    <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <style>
-          @font-face {
-            font-family: 'PawprintsTitle';
-            src: url('${getEmbeddedTitleFontDataUri()}') format('truetype');
-            font-weight: 700;
-            font-style: normal;
-          }
-        </style>
-      </defs>
-      <text
-        x="${FINAL_WIDTH / 2}"
-        y="${title.firstLineY}"
-        text-anchor="middle"
-        font-size="${title.fontSize}"
-        font-family="PawprintsTitle"
-        font-weight="700"
-        fill="#4a3727">${title.firstLine}</text>
-      ${title.secondLine ? `<text
-        x="${FINAL_WIDTH / 2}"
-        y="${title.secondLineY}"
-        text-anchor="middle"
-        font-size="${title.secondLineFontSize}"
-        font-family="PawprintsTitle"
-        font-weight="700"
-        fill="#4a3727">${title.secondLine}</text>` : ""}
-    </svg>
-  `);
+  const firstLineOverlay = await createTitleTextLayer(
+    title.firstLine,
+    title.fontSize,
+    FINAL_WIDTH - 200,
+    title.secondLine ? 120 : 140
+  );
+  const secondLineOverlay = title.secondLine
+    ? await createTitleTextLayer(title.secondLine, title.secondLineFontSize, FINAL_WIDTH - 200, 120)
+    : null;
 
   return sharp({
     create: {
@@ -172,7 +148,10 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
       { input: posterBackground },
       { input: portrait, left: artLeft, top: artTop },
       { input: titleSafeBand },
-      { input: titleOverlay }
+      { input: firstLineOverlay, left: 100, top: title.firstLineTop },
+      ...(secondLineOverlay
+        ? [{ input: secondLineOverlay, left: 100, top: title.secondLineTop }]
+        : [])
     ])
     .png()
     .toBuffer();
@@ -301,36 +280,30 @@ function buildTitleLayout(name: string) {
 
   if (!shouldSplit) {
     return {
-      firstLine: escapeSvgText(displayName),
+      firstLine: displayName,
       secondLine: "",
       fontSize: displayName.length > 10 ? 112 : 128,
       secondLineFontSize: 0,
-      letterSpacing: displayName.length > 10 ? 4 : 6,
-      secondLineLetterSpacing: 0,
-      firstLineY: 220,
-      secondLineY: 0,
-      subtitleY: 0
+      firstLineTop: 115,
+      secondLineTop: 0
     };
   }
 
   const midpoint = Math.ceil(words.length / 2);
-  const firstLine = escapeSvgText(words.slice(0, midpoint).join(" "));
-  const secondLine = escapeSvgText(words.slice(midpoint).join(" "));
+  const firstLine = words.slice(0, midpoint).join(" ");
+  const secondLine = words.slice(midpoint).join(" ");
 
   return {
     firstLine,
     secondLine,
     fontSize: 94,
     secondLineFontSize: 94,
-    letterSpacing: 3,
-    secondLineLetterSpacing: 3,
-    firstLineY: 190,
-    secondLineY: 292,
-    subtitleY: 0
+    firstLineTop: 82,
+    secondLineTop: 196
   };
 }
 
-function escapeSvgText(input: string) {
+function escapePangoText(input: string) {
   return input
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -339,18 +312,32 @@ function escapeSvgText(input: string) {
     .replaceAll("'", "&apos;");
 }
 
-function getEmbeddedTitleFontDataUri() {
-  if (embeddedTitleFontDataUri) {
-    return embeddedTitleFontDataUri;
-  }
-
-  const fontPath = path.join(
+function getTitleFontPath() {
+  return path.join(
     process.cwd(),
     "assets",
     "fonts",
     "title.ttf"
   );
-  const fontBytes = fs.readFileSync(fontPath);
-  embeddedTitleFontDataUri = `data:font/ttf;base64,${fontBytes.toString("base64")}`;
-  return embeddedTitleFontDataUri;
+}
+
+async function createTitleTextLayer(
+  text: string,
+  fontSize: number,
+  width: number,
+  height: number
+) {
+  return sharp({
+    text: {
+      text: `<span foreground="#4a3727">${escapePangoText(text)}</span>`,
+      font: `Title ${fontSize}px`,
+      fontfile: getTitleFontPath(),
+      width,
+      height,
+      align: "centre",
+      rgba: true
+    }
+  })
+    .png()
+    .toBuffer();
 }
