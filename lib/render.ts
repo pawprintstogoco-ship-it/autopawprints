@@ -148,7 +148,11 @@ async function generateAiPortrait(source: Buffer, petName: string) {
   );
   form.append("size", "1536x1536");
   form.append("quality", "high");
-  form.append("image", new Blob([editedSource], { type: "image/jpeg" }), "pet-reference.jpg");
+  form.append(
+    "image",
+    new Blob([new Uint8Array(editedSource)], { type: "image/jpeg" }),
+    "pet-reference.jpg"
+  );
 
   const response = await fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
