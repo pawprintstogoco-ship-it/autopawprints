@@ -21,6 +21,7 @@ export type RenderOutput = {
 
 const FINAL_WIDTH = 1800;
 const FINAL_HEIGHT = 2400;
+const TITLE_SAFE_HEIGHT = 430;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -85,10 +86,10 @@ export async function renderPortrait({
 }
 
 async function buildPosterPng(portraitBase: Buffer, petName: string) {
-  const artWidth = 1400;
-  const artHeight = 1920;
+  const artWidth = 1380;
+  const artHeight = 1860;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 620;
+  const artTop = 500;
   const title = buildTitleLayout(petName);
 
   const portrait = await sharp(portraitBase)
@@ -109,6 +110,12 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#ffffff"/>
+    </svg>
+  `);
+
+  const titleSafeBand = Buffer.from(`
+    <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${FINAL_WIDTH}" height="${TITLE_SAFE_HEIGHT}" fill="#ffffff"/>
     </svg>
   `);
 
@@ -144,6 +151,7 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
     .composite([
       { input: posterBackground },
       { input: portrait, left: artLeft, top: artTop },
+      { input: titleSafeBand },
       { input: titleOverlay }
     ])
     .png()
@@ -276,7 +284,7 @@ function buildTitleLayout(name: string) {
       secondLineFontSize: 0,
       letterSpacing: displayName.length > 10 ? 4 : 6,
       secondLineLetterSpacing: 0,
-      firstLineY: 250,
+      firstLineY: 220,
       secondLineY: 0,
       subtitleY: 0
     };
@@ -293,8 +301,8 @@ function buildTitleLayout(name: string) {
     secondLineFontSize: 94,
     letterSpacing: 3,
     secondLineLetterSpacing: 3,
-    firstLineY: 218,
-    secondLineY: 322,
+    firstLineY: 190,
+    secondLineY: 292,
     subtitleY: 0
   };
 }
