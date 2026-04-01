@@ -88,7 +88,8 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   const artWidth = 1360;
   const artHeight = 1700;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 430;
+  const artTop = 500;
+  const title = buildTitleLayout(petName);
 
   const portrait = await sharp(portraitBase)
     .resize(artWidth, artHeight, {
@@ -102,35 +103,38 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="paper" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#f6eee1"/>
-          <stop offset="100%" stop-color="#ead8c2"/>
-        </linearGradient>
         <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="24" stdDeviation="34" flood-color="#a68664" flood-opacity="0.18"/>
+          <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#aa8764" flood-opacity="0.12"/>
         </filter>
       </defs>
-      <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#e6d2bb"/>
-      <rect x="92" y="92" width="${FINAL_WIDTH - 184}" height="${FINAL_HEIGHT - 184}" rx="48" fill="url(#paper)" filter="url(#shadow)"/>
-      <rect x="${artLeft - 18}" y="${artTop - 18}" width="${artWidth + 36}" height="${artHeight + 36}" rx="32" fill="#f8f1e7" opacity="0.92"/>
+      <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#f3e6d6"/>
+      <rect x="112" y="112" width="${FINAL_WIDTH - 224}" height="${FINAL_HEIGHT - 224}" rx="40" fill="#f3e6d6"/>
+      <rect x="${artLeft - 14}" y="${artTop - 14}" width="${artWidth + 28}" height="${artHeight + 28}" rx="24" fill="#f7eee3" filter="url(#shadow)"/>
       <text
         x="${FINAL_WIDTH / 2}"
-        y="246"
+        y="${title.firstLineY}"
         text-anchor="middle"
-        font-size="136"
+        font-size="${title.fontSize}"
         font-family="Georgia, 'Times New Roman', serif"
-        letter-spacing="6"
-        fill="#6f5037">${escapeSvgText(formatDisplayName(petName))}</text>
+        letter-spacing="${title.letterSpacing}"
+        fill="#6f5037">${title.firstLine}</text>
+      ${title.secondLine ? `<text
+        x="${FINAL_WIDTH / 2}"
+        y="${title.secondLineY}"
+        text-anchor="middle"
+        font-size="${title.secondLineFontSize}"
+        font-family="Georgia, 'Times New Roman', serif"
+        letter-spacing="${title.secondLineLetterSpacing}"
+        fill="#6f5037">${title.secondLine}</text>` : ""}
       <text
         x="${FINAL_WIDTH / 2}"
-        y="320"
+        y="${title.subtitleY}"
         text-anchor="middle"
-        font-size="28"
+        font-size="24"
         font-family="Arial, Helvetica, sans-serif"
-        letter-spacing="9"
+        letter-spacing="7"
         fill="#a27b59">CUSTOM PET PORTRAIT</text>
-      <rect x="150" y="170" width="${FINAL_WIDTH - 300}" height="2" fill="#ceb194" opacity="0.6"/>
-      <rect x="150" y="${FINAL_HEIGHT - 150}" width="${FINAL_WIDTH - 300}" height="2" fill="#ceb194" opacity="0.45"/>
+      <rect x="180" y="160" width="${FINAL_WIDTH - 360}" height="2" fill="#d5b89a" opacity="0.72"/>
     </svg>
   `);
 
@@ -259,6 +263,42 @@ function formatDisplayName(name: string) {
   }
 
   return trimmed.toUpperCase();
+}
+
+function buildTitleLayout(name: string) {
+  const displayName = formatDisplayName(name);
+  const words = displayName.split(/\s+/).filter(Boolean);
+  const shouldSplit = displayName.length > 12 && words.length > 1;
+
+  if (!shouldSplit) {
+    return {
+      firstLine: escapeSvgText(displayName),
+      secondLine: "",
+      fontSize: displayName.length > 10 ? 112 : 128,
+      secondLineFontSize: 0,
+      letterSpacing: displayName.length > 10 ? 4 : 6,
+      secondLineLetterSpacing: 0,
+      firstLineY: 248,
+      secondLineY: 0,
+      subtitleY: 320
+    };
+  }
+
+  const midpoint = Math.ceil(words.length / 2);
+  const firstLine = escapeSvgText(words.slice(0, midpoint).join(" "));
+  const secondLine = escapeSvgText(words.slice(midpoint).join(" "));
+
+  return {
+    firstLine,
+    secondLine,
+    fontSize: 94,
+    secondLineFontSize: 94,
+    letterSpacing: 3,
+    secondLineLetterSpacing: 3,
+    firstLineY: 224,
+    secondLineY: 322,
+    subtitleY: 390
+  };
 }
 
 function escapeSvgText(input: string) {
