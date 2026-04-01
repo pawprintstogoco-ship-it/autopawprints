@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getOrderByUploadToken } from "@/lib/orders";
 import { getPublicFileUrl } from "@/lib/storage";
+import { UploadForm } from "@/app/upload/[token]/upload-form";
 
 export default async function UploadPage({
   params
@@ -65,31 +66,7 @@ export default async function UploadPage({
       ) : null}
 
       <section className="panel panel-pad" style={{ maxWidth: 720 }}>
-        <form
-          className="stack"
-          action={`/api/uploads/${token}`}
-          method="post"
-          encType="multipart/form-data"
-        >
-          <div className="muted">
-            Re-uploading a new photo will replace the current source image for the next render.
-          </div>
-          <label className="field">
-            <span>Pet name</span>
-            <input type="text" name="petName" required />
-          </label>
-          <label className="field">
-            <span>Photo</span>
-            <input type="file" name="photo" accept="image/*" required />
-          </label>
-          <label className="field">
-            <span>Notes</span>
-            <textarea name="notes" rows={5} placeholder="Anything we should know about the portrait?" />
-          </label>
-          <button className="button" type="submit">
-            Submit photo
-          </button>
-        </form>
+        <UploadForm token={token} />
       </section>
     </main>
   );

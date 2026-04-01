@@ -346,13 +346,9 @@ function getEmbeddedTitleFontDataUri() {
 
   const fontPath = path.join(
     process.cwd(),
-    "node_modules",
-    "next",
-    "dist",
-    "compiled",
-    "@vercel",
-    "og",
-    "noto-sans-v27-latin-regular.ttf"
+    "assets",
+    "fonts",
+    "title.ttf"
   );
   const fontBytes = fs.readFileSync(fontPath);
   embeddedTitleFontDataUri = `data:font/ttf;base64,${fontBytes.toString("base64")}`;
