@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import { requireEnv } from "@/lib/env";
@@ -22,6 +24,7 @@ export type RenderOutput = {
 const FINAL_WIDTH = 1800;
 const FINAL_HEIGHT = 2400;
 const TITLE_SAFE_HEIGHT = 430;
+let embeddedTitleFontDataUri: string | null = null;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -128,12 +131,22 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
 
   const titleOverlay = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          @font-face {
+            font-family: 'PawprintsTitle';
+            src: url('${getEmbeddedTitleFontDataUri()}') format('truetype');
+            font-weight: 700;
+            font-style: normal;
+          }
+        </style>
+      </defs>
       <text
         x="${FINAL_WIDTH / 2}"
         y="${title.firstLineY}"
         text-anchor="middle"
         font-size="${title.fontSize}"
-        font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
+        font-family="PawprintsTitle"
         font-weight="700"
         fill="#4a3727">${title.firstLine}</text>
       ${title.secondLine ? `<text
@@ -141,7 +154,7 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
         y="${title.secondLineY}"
         text-anchor="middle"
         font-size="${title.secondLineFontSize}"
-        font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
+        font-family="PawprintsTitle"
         font-weight="700"
         fill="#4a3727">${title.secondLine}</text>` : ""}
     </svg>
@@ -324,4 +337,24 @@ function escapeSvgText(input: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&apos;");
+}
+
+function getEmbeddedTitleFontDataUri() {
+  if (embeddedTitleFontDataUri) {
+    return embeddedTitleFontDataUri;
+  }
+
+  const fontPath = path.join(
+    process.cwd(),
+    "node_modules",
+    "next",
+    "dist",
+    "compiled",
+    "@vercel",
+    "og",
+    "noto-sans-v27-latin-regular.ttf"
+  );
+  const fontBytes = fs.readFileSync(fontPath);
+  embeddedTitleFontDataUri = `data:font/ttf;base64,${fontBytes.toString("base64")}`;
+  return embeddedTitleFontDataUri;
 }
