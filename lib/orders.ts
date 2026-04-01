@@ -13,7 +13,6 @@ import { scheduleMissingPhotoReminders } from "@/lib/reminders";
 import { getBuffer, putBuffer } from "@/lib/storage";
 import { createToken } from "@/lib/tokens";
 import { requireEnv } from "@/lib/env";
-import { sendDeliveryEmail } from "@/lib/email";
 
 type EtsyWebhookPayload = {
   event_id?: string;
@@ -648,17 +647,11 @@ export async function deliverApprovedOrder(orderId: string) {
     }
   });
 
-  if (!order?.buyerEmail || !order.downloadToken || !order.deliveryEvents[0]) {
+  if (!order?.downloadToken || !order.deliveryEvents[0]) {
     return;
   }
 
   const deliveryUrl = order.deliveryEvents[0]?.deliveryUrl;
-
-  await sendDeliveryEmail({
-    to: order.buyerEmail,
-    subject: `Your PawPrints portrait is ready`,
-    html: `<p>Hi ${order.buyerName},</p><p>Your portrait is ready to download.</p><p><a href="${deliveryUrl}">Download your files</a></p>`
-  });
 
   await prisma.$transaction([
     prisma.deliveryEvent.update({
@@ -676,6 +669,13 @@ export async function deliverApprovedOrder(orderId: string) {
       data: {
         status: OrderStatus.DELIVERED,
         deliveredAt: new Date(),
+        messageEvents: {
+          create: {
+            channel: MessageChannel.INTERNAL,
+            eventType: "delivery.portal_ready",
+            body: `Portal download is ready at ${deliveryUrl}`
+          }
+        },
         auditLog: {
           create: {
             action: "delivery.sent",

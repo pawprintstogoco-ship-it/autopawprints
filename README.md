@@ -10,7 +10,7 @@ PawPrints Automation is a Next.js starter app for running custom Etsy portrait o
 - Tokenized customer upload flow at `/upload/[token]`
 - Deterministic portrait renderer using `sharp` and `pdf-lib`
 - Approval, rerender, and manual-attention admin actions
-- Delivery links and delivery email service
+- Delivery links and portal-first fulfillment
 - Background worker hooks for rendering, reminders, and delivery
 - Pilot-listing gating so only one Etsy listing auto-enters the flow
 - Prisma schema for Postgres-backed persistence and Etsy connection state
@@ -71,6 +71,7 @@ npm run seed:demo
 ## Notes
 
 - Storage defaults to the local filesystem under `STORAGE_ROOT`.
+- Delivery is portal-first in v1. Buyers upload through the portal and return to a secure download link after approval.
 - Etsy conversation follow-up remains manual in v1; reminder jobs create internal dashboard alerts instead of sending thread replies.
 - Etsy OAuth uses the documented PKCE flow and stores the seller token pair in the database.
 - The webhook route expects Etsy-style `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers and fetches the receipt resource from Etsy before creating the order.

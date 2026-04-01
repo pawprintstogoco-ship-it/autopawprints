@@ -3,7 +3,6 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 beforeEach(() => {
   vi.resetModules();
   process.env.APP_URL = "http://localhost:3010";
-  process.env.WEBHOOK_SHARED_SECRET = "secret";
   process.env.ETSY_DIGITAL_SALE_MESSAGE_TEMPLATE =
     "Upload your pet photo here: {{UPLOAD_URL}}";
   process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/pawprints";

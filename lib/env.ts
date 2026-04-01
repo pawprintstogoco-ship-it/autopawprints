@@ -8,15 +8,6 @@ const envSchema = z.object({
   ADMIN_PASSWORD: z.string().min(8),
   SESSION_SECRET: z.string().min(16),
   STORAGE_ROOT: z.string().min(1),
-  SMTP_HOST: z.string().min(1),
-  SMTP_PORT: z.coerce.number().int().positive(),
-  SMTP_SECURE: z
-    .string()
-    .transform((value) => value === "true")
-    .pipe(z.boolean()),
-  SMTP_USER: z.string().min(1),
-  SMTP_PASSWORD: z.string().min(1),
-  MAIL_FROM: z.string().min(1),
   DELIVERY_LINK_TTL_HOURS: z.coerce.number().int().positive(),
   ETSY_CLIENT_ID: z.string().min(1),
   ETSY_CLIENT_SECRET: z.string().default(""),
