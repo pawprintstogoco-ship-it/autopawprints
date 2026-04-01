@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3010",
-    "build": "next build",
+    "build": "tsx scripts/build.ts",
     "start": "next start -p 3010",
     "lint": "next lint",
     "test": "vitest run",
