@@ -19,6 +19,9 @@ export type RenderOutput = {
   height: number;
 };
 
+const FINAL_WIDTH = 1800;
+const FINAL_HEIGHT = 2400;
+
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
   const metadata = await image.metadata();
@@ -40,51 +43,23 @@ export async function renderPortrait({
 }: RenderInput): Promise<RenderOutput> {
   const { blurScore, width, height } = await analyzeImage(source);
   const portraitBase = await createPortraitBase(source, petName);
-  const base = sharp(portraitBase).resize(1600, 1600, {
-    fit: "cover",
-    position: "attention"
-  });
-  const metadata = await base.metadata();
-
-  const overlay = Buffer.from(`
-    <svg width="1600" height="1600" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="wash" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#f6f0e7" stop-opacity="0.0"/>
-          <stop offset="100%" stop-color="#d9b28f" stop-opacity="0.42"/>
-        </linearGradient>
-      </defs>
-      <rect width="1600" height="1600" fill="url(#wash)" />
-      <rect x="48" y="48" width="1504" height="1504" rx="40" fill="none" stroke="#faf7f1" stroke-width="6" />
-      <text x="800" y="1480" text-anchor="middle" font-size="110" font-family="Georgia, serif" fill="#faf7f1">${escapeSvgText(
-        petName
-      )}</text>
-    </svg>
-  `);
-
-  const previewBuffer = await base
-    .modulate({ saturation: 0.8, brightness: 1.03 })
-    .grayscale()
-    .tint({ r: 214, g: 184, b: 148 })
-    .composite([{ input: overlay }])
-    .png()
-    .toBuffer();
-
-  const finalPngBuffer = await sharp(previewBuffer)
-    .resize(2400, 2400, {
-      fit: "cover"
+  const finalPngBuffer = await buildPosterPng(portraitBase, petName);
+  const previewBuffer = await sharp(finalPngBuffer)
+    .resize(1080, 1440, {
+      fit: "inside"
     })
     .png()
     .toBuffer();
+  const metadata = await sharp(finalPngBuffer).metadata();
 
   const pdf = await PDFDocument.create();
-  const page = pdf.addPage([1800, 2400]);
+  const page = pdf.addPage([FINAL_WIDTH, FINAL_HEIGHT]);
   const pngImage = await pdf.embedPng(finalPngBuffer);
   page.drawImage(pngImage, {
     x: 0,
     y: 0,
-    width: 1800,
-    height: 2400
+    width: FINAL_WIDTH,
+    height: FINAL_HEIGHT
   });
   const pdfBuffer = Buffer.from(await pdf.save());
 
@@ -109,6 +84,71 @@ export async function renderPortrait({
   };
 }
 
+async function buildPosterPng(portraitBase: Buffer, petName: string) {
+  const artWidth = 1360;
+  const artHeight = 1700;
+  const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
+  const artTop = 430;
+
+  const portrait = await sharp(portraitBase)
+    .resize(artWidth, artHeight, {
+      fit: "cover",
+      position: "attention"
+    })
+    .png()
+    .toBuffer();
+
+  const posterBackground = Buffer.from(`
+    <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="paper" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f6eee1"/>
+          <stop offset="100%" stop-color="#ead8c2"/>
+        </linearGradient>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="24" stdDeviation="34" flood-color="#a68664" flood-opacity="0.18"/>
+        </filter>
+      </defs>
+      <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#e6d2bb"/>
+      <rect x="92" y="92" width="${FINAL_WIDTH - 184}" height="${FINAL_HEIGHT - 184}" rx="48" fill="url(#paper)" filter="url(#shadow)"/>
+      <rect x="${artLeft - 18}" y="${artTop - 18}" width="${artWidth + 36}" height="${artHeight + 36}" rx="32" fill="#f8f1e7" opacity="0.92"/>
+      <text
+        x="${FINAL_WIDTH / 2}"
+        y="246"
+        text-anchor="middle"
+        font-size="136"
+        font-family="Georgia, 'Times New Roman', serif"
+        letter-spacing="6"
+        fill="#6f5037">${escapeSvgText(formatDisplayName(petName))}</text>
+      <text
+        x="${FINAL_WIDTH / 2}"
+        y="320"
+        text-anchor="middle"
+        font-size="28"
+        font-family="Arial, Helvetica, sans-serif"
+        letter-spacing="9"
+        fill="#a27b59">CUSTOM PET PORTRAIT</text>
+      <rect x="150" y="170" width="${FINAL_WIDTH - 300}" height="2" fill="#ceb194" opacity="0.6"/>
+      <rect x="150" y="${FINAL_HEIGHT - 150}" width="${FINAL_WIDTH - 300}" height="2" fill="#ceb194" opacity="0.45"/>
+    </svg>
+  `);
+
+  return sharp({
+    create: {
+      width: FINAL_WIDTH,
+      height: FINAL_HEIGHT,
+      channels: 4,
+      background: "#efe3d3"
+    }
+  })
+    .composite([
+      { input: posterBackground },
+      { input: portrait, left: artLeft, top: artTop }
+    ])
+    .png()
+    .toBuffer();
+}
+
 async function createPortraitBase(source: Buffer, petName: string) {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -127,9 +167,10 @@ async function createPortraitBase(source: Buffer, petName: string) {
 async function generateAiPortrait(source: Buffer, petName: string) {
   const { OPENAI_API_KEY, OPENAI_IMAGE_MODEL } = requireEnv();
   const editedSource = await sharp(source)
-    .resize(1536, 1536, {
-      fit: "cover",
-      position: "attention"
+    .resize(1024, 1536, {
+      fit: "contain",
+      position: "attention",
+      background: "#f3e7d7"
     })
     .jpeg({ quality: 92 })
     .toBuffer();
@@ -139,14 +180,16 @@ async function generateAiPortrait(source: Buffer, petName: string) {
   form.append(
     "prompt",
     [
-      "Create a clean, polished custom pet memorial portrait from the provided pet photo.",
+      `Create a premium custom pet portrait poster illustration for a pet named ${petName}.`,
       "Keep the same pet identity, fur markings, face shape, and expression recognizable.",
-      "Use a refined illustrated portrait style with soft painterly detail, a centered composition,",
-      "and a simple warm neutral studio background suitable for an Etsy digital print.",
-      "Show only the pet. Do not add collars, props, frames, extra animals, or any text."
+      "Use a refined hand-painted illustrated style similar to a polished Etsy pet portrait print.",
+      "Compose the pet as a centered bust or upper-body portrait occupying the lower two-thirds of the page.",
+      "Leave generous clean negative space at the top for the pet's name to be added later.",
+      "Use a warm cream or beige paper-like background with subtle artistic texture.",
+      "Show only one pet. Do not add collars, props, frames, furniture, extra animals, or any text."
     ].join(" ")
   );
-  form.append("size", "1536x1536");
+  form.append("size", "1024x1536");
   form.append("quality", "high");
   form.append(
     "image",
@@ -193,15 +236,24 @@ async function generateAiPortrait(source: Buffer, petName: string) {
 
 async function createFallbackPortrait(source: Buffer) {
   return sharp(source)
-    .resize(1600, 1600, {
-      fit: "cover",
-      position: "attention"
+    .resize(1024, 1536, {
+      fit: "contain",
+      position: "attention",
+      background: "#f3e7d7"
     })
-    .modulate({ saturation: 0.8, brightness: 1.03 })
-    .grayscale()
-    .tint({ r: 214, g: 184, b: 148 })
+    .modulate({ saturation: 0.92, brightness: 1.02 })
+    .normalise()
     .png()
     .toBuffer();
+}
+
+function formatDisplayName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "YOUR PET";
+  }
+
+  return trimmed.toUpperCase();
 }
 
 function escapeSvgText(input: string) {
