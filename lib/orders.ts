@@ -393,8 +393,8 @@ export async function storeCustomerUpload({
     throw new Error("Only image uploads are supported");
   }
 
-  if (imageInfo.width < 800 || imageInfo.height < 800) {
-    throw new Error("Photo is too small. Please upload a larger image.");
+  if (imageInfo.width < 400 || imageInfo.height < 400) {
+    throw new Error("Photo is too small. Please upload a photo that is at least 400px on each side.");
   }
 
   const storageKey = `orders/${orderId}/uploads/${Date.now()}-${sanitizeFileName(originalName)}`;
