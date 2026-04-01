@@ -85,10 +85,10 @@ export async function renderPortrait({
 }
 
 async function buildPosterPng(portraitBase: Buffer, petName: string) {
-  const artWidth = 1320;
-  const artHeight = 1880;
+  const artWidth = 1460;
+  const artHeight = 2020;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 560;
+  const artTop = 520;
   const title = buildTitleLayout(petName);
 
   const portrait = await sharp(portraitBase)
