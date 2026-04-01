@@ -92,8 +92,9 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
 
   const portrait = await sharp(portraitBase)
     .resize(artWidth, artHeight, {
-      fit: "cover",
-      position: "attention"
+      fit: "contain",
+      position: "attention",
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
     .png()
     .toBuffer();
@@ -170,9 +171,9 @@ async function generateAiPortrait(source: Buffer, petName: string) {
     .resize(1024, 1536, {
       fit: "contain",
       position: "attention",
-      background: "#f3e7d7"
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
-    .jpeg({ quality: 92 })
+    .png()
     .toBuffer();
 
   const form = new FormData();
@@ -182,19 +183,23 @@ async function generateAiPortrait(source: Buffer, petName: string) {
     [
       `Create a premium custom pet portrait poster illustration for a pet named ${petName}.`,
       "Keep the same pet identity, fur markings, face shape, and expression recognizable.",
-      "Use a refined hand-painted illustrated style similar to a polished Etsy pet portrait print.",
-      "Compose the pet as a centered bust or upper-body portrait occupying the lower two-thirds of the page.",
-      "Leave generous clean negative space at the top for the pet's name to be added later.",
-      "Use a warm cream or beige paper-like background with subtle artistic texture.",
-      "Show only one pet. Do not add collars, props, frames, furniture, extra animals, or any text."
+      "Remove the original photo background completely and return only the pet as the subject.",
+      "Create a clean stylized illustrated portrait with smooth simplified shapes and crisp edges, similar to premium vector-inspired Etsy pet art.",
+      "Use soft painterly color blocks, clear fur definition, and an elegant polished finish.",
+      "Frame the pet as a centered bust or upper-body portrait facing forward or in natural three-quarter view.",
+      "Do not include any room background, scenery, props, collars, frames, shadows on the floor, furniture, extra animals, or any text.",
+      "The final image should be just the isolated pet on a transparent background."
     ].join(" ")
   );
   form.append("size", "1024x1536");
   form.append("quality", "high");
+  form.append("background", "transparent");
+  form.append("output_format", "png");
+  form.append("input_fidelity", "high");
   form.append(
     "image",
-    new Blob([new Uint8Array(editedSource)], { type: "image/jpeg" }),
-    "pet-reference.jpg"
+    new Blob([new Uint8Array(editedSource)], { type: "image/png" }),
+    "pet-reference.png"
   );
 
   const response = await fetch("https://api.openai.com/v1/images/edits", {
