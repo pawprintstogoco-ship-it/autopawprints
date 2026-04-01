@@ -18,11 +18,11 @@ export function UploadForm({ token }: { token: string }) {
       </div>
       <label className="field">
         <span>Pet name</span>
-        <input type="text" name="petName" required disabled={isSubmitting} />
+        <input type="text" name="petName" required />
       </label>
       <label className="field">
         <span>Photo</span>
-        <input type="file" name="photo" accept="image/*" required disabled={isSubmitting} />
+        <input type="file" name="photo" accept="image/*" required />
       </label>
       <label className="field">
         <span>Notes</span>
@@ -30,7 +30,6 @@ export function UploadForm({ token }: { token: string }) {
           name="notes"
           rows={5}
           placeholder="Anything we should know about the portrait?"
-          disabled={isSubmitting}
         />
       </label>
       <button className="button" type="submit" disabled={isSubmitting}>
