@@ -92,7 +92,14 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   const artTop = 500;
   const title = buildTitleLayout(petName);
 
-  const portrait = await sharp(portraitBase)
+  const trimmedPortraitBase = await sharp(portraitBase)
+    .trim({
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      threshold: 8
+    })
+    .toBuffer();
+
+  const portrait = await sharp(trimmedPortraitBase)
     .resize(artWidth, artHeight, {
       fit: "contain",
       position: "top",
@@ -121,22 +128,29 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
 
   const titleOverlay = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        .title {
+          font-family: Arial, Helvetica, sans-serif;
+          font-weight: 700;
+          fill: #4a3727;
+        }
+      </style>
       <text
+        class="title"
         x="${FINAL_WIDTH / 2}"
         y="${title.firstLineY}"
         text-anchor="middle"
         font-size="${title.fontSize}"
-        font-family="Georgia, 'Times New Roman', serif"
         letter-spacing="${title.letterSpacing}"
-        fill="#6f5037">${title.firstLine}</text>
+        fill="#4a3727">${title.firstLine}</text>
       ${title.secondLine ? `<text
+        class="title"
         x="${FINAL_WIDTH / 2}"
         y="${title.secondLineY}"
         text-anchor="middle"
         font-size="${title.secondLineFontSize}"
-        font-family="Georgia, 'Times New Roman', serif"
         letter-spacing="${title.secondLineLetterSpacing}"
-        fill="#6f5037">${title.secondLine}</text>` : ""}
+        fill="#4a3727">${title.secondLine}</text>` : ""}
     </svg>
   `);
 
@@ -268,7 +282,10 @@ function formatDisplayName(name: string) {
     return "YOUR PET";
   }
 
-  return trimmed.toUpperCase();
+  return trimmed
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "")
+    .toUpperCase();
 }
 
 function buildTitleLayout(name: string) {
