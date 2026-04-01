@@ -87,10 +87,10 @@ export async function renderPortrait({
 }
 
 async function buildPosterPng(portraitBase: Buffer, petName: string) {
-  const artWidth = 1380;
-  const artHeight = 1860;
+  const artWidth = 1500;
+  const artHeight = 2280;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 500;
+  const artTop = 460;
   const title = buildTitleLayout(petName);
 
   const trimmedPortraitBase = await sharp(portraitBase)
@@ -129,11 +129,11 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   const firstLineOverlay = await createTitleTextLayer(
     title.firstLine,
     title.fontSize,
-    FINAL_WIDTH - 200,
-    title.secondLine ? 120 : 140
+    FINAL_WIDTH - 120,
+    title.secondLine ? 140 : 170
   );
   const secondLineOverlay = title.secondLine
-    ? await createTitleTextLayer(title.secondLine, title.secondLineFontSize, FINAL_WIDTH - 200, 120)
+    ? await createTitleTextLayer(title.secondLine, title.secondLineFontSize, FINAL_WIDTH - 120, 140)
     : null;
 
   return sharp({
@@ -148,9 +148,9 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
       { input: posterBackground },
       { input: portrait, left: artLeft, top: artTop },
       { input: titleSafeBand },
-      { input: firstLineOverlay, left: 100, top: title.firstLineTop },
+      { input: firstLineOverlay, left: 60, top: title.firstLineTop },
       ...(secondLineOverlay
-        ? [{ input: secondLineOverlay, left: 100, top: title.secondLineTop }]
+        ? [{ input: secondLineOverlay, left: 60, top: title.secondLineTop }]
         : [])
     ])
     .png()
@@ -282,9 +282,9 @@ function buildTitleLayout(name: string) {
     return {
       firstLine: displayName,
       secondLine: "",
-      fontSize: displayName.length > 10 ? 112 : 128,
+      fontSize: displayName.length > 10 ? 132 : 152,
       secondLineFontSize: 0,
-      firstLineTop: 115,
+      firstLineTop: 92,
       secondLineTop: 0
     };
   }
@@ -296,10 +296,10 @@ function buildTitleLayout(name: string) {
   return {
     firstLine,
     secondLine,
-    fontSize: 94,
-    secondLineFontSize: 94,
-    firstLineTop: 82,
-    secondLineTop: 196
+    fontSize: 116,
+    secondLineFontSize: 116,
+    firstLineTop: 58,
+    secondLineTop: 188
   };
 }
 
