@@ -322,6 +322,19 @@ export async function getOrderByUploadToken(token: string) {
       uploadTokenExpiresAt: {
         gt: new Date()
       }
+    },
+    include: {
+      uploads: {
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 1
+      },
+      artifacts: {
+        orderBy: {
+          createdAt: "desc"
+        }
+      }
     }
   });
 }
@@ -637,7 +650,11 @@ export async function rerenderOrder(orderId: string) {
     }
   });
 
-  await enqueueRenderJob(renderJob.id);
+  if (shouldRunInlineJobs()) {
+    await processRenderJob(renderJob.id);
+  } else {
+    await enqueueRenderJob(renderJob.id);
+  }
   return renderJob;
 }
 

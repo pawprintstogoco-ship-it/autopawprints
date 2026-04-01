@@ -1,6 +1,6 @@
 # PawPrints Automation
 
-PawPrints Automation is a Next.js starter app for running custom Etsy portrait orders through a structured internal workflow: order intake, secure photo upload, deterministic rendering, manual approval, reminders, and digital delivery.
+PawPrints Automation is a Next.js app for running custom Etsy portrait orders through a structured internal workflow: order intake, secure photo upload, AI-assisted portrait rendering, manual approval, reminders, and digital delivery.
 
 ## What is implemented
 
@@ -8,7 +8,7 @@ PawPrints Automation is a Next.js starter app for running custom Etsy portrait o
 - Etsy `ORDER_PAID` webhook endpoint at `/api/etsy/webhooks/order-paid`
 - Admin login and protected order dashboard
 - Tokenized customer upload flow at `/upload/[token]`
-- Deterministic portrait renderer using `sharp` and `pdf-lib`
+- AI-assisted portrait renderer using OpenAI image edits plus `sharp` and `pdf-lib`
 - Approval, rerender, and manual-attention admin actions
 - Delivery links and portal-first fulfillment
 - Background worker hooks for rendering, reminders, and delivery
@@ -27,13 +27,9 @@ ADMIN_EMAIL=...
 ADMIN_PASSWORD=...
 SESSION_SECRET=...
 STORAGE_ROOT=./storage
-SMTP_HOST=...
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=...
-SMTP_PASSWORD=...
-MAIL_FROM=...
 DELIVERY_LINK_TTL_HOURS=168
+OPENAI_API_KEY=...
+OPENAI_IMAGE_MODEL=gpt-image-1
 ETSY_CLIENT_ID=...
 ETSY_CLIENT_SECRET=
 ETSY_REDIRECT_URI=https://your-domain.com/api/etsy/oauth/callback
@@ -72,6 +68,7 @@ npm run seed:demo
 
 - Storage is persisted in the database for the hosted demo flow, avoiding Vercel filesystem write errors.
 - Delivery is portal-first in v1. Buyers upload through the portal and return to a secure download link after approval.
+- If `OPENAI_API_KEY` is set, uploaded pet photos are transformed into a stylized portrait with OpenAI before the app adds the buyer-facing layout and export formats. Without that key, the app falls back to the simpler local stylizer.
 - Etsy conversation follow-up remains manual in v1; reminder jobs create internal dashboard alerts instead of sending thread replies.
 - Etsy OAuth uses the documented PKCE flow and stores the seller token pair in the database.
 - The webhook route expects Etsy-style `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers and fetches the receipt resource from Etsy before creating the order.

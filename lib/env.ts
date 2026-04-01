@@ -9,6 +9,8 @@ const envSchema = z.object({
   SESSION_SECRET: z.string().min(16),
   STORAGE_ROOT: z.string().min(1),
   DELIVERY_LINK_TTL_HOURS: z.coerce.number().int().positive(),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_IMAGE_MODEL: z.string().min(1).default("gpt-image-1"),
   ETSY_CLIENT_ID: z.string().min(1),
   ETSY_CLIENT_SECRET: z.string().default(""),
   ETSY_REDIRECT_URI: z.string().url(),
