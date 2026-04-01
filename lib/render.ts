@@ -98,9 +98,10 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
     .modulate({
-      saturation: 0.92,
-      brightness: 1.01
+      saturation: 0.88,
+      brightness: 1.1
     })
+    .linear([0.94, 0.97, 1.05, 1], [6, 6, 10, 0])
     .normalise()
     .png()
     .toBuffer();
@@ -184,7 +185,8 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "Keep the same pet identity, fur markings, face shape, and expression recognizable.",
       "Remove the original photo background completely and return only the pet as the subject.",
       "Create a clean stylized illustrated portrait with smooth simplified shapes and crisp edges, similar to premium vector-inspired Etsy pet art.",
-      "Use soft painterly color blocks, clear fur definition, an elegant polished finish, and natural neutral color balance.",
+      "Use soft painterly color blocks, clear fur definition, an elegant polished finish, and bright neutral color balance.",
+      "Avoid sepia, yellow cast, cream cast, or warm vintage toning.",
       "Frame the pet as a centered bust or upper-body portrait facing forward or in natural three-quarter view.",
       "Do not include any room background, scenery, props, collars, frames, shadows on the floor, furniture, extra animals, or any text.",
       "The final image should be just the isolated pet on a transparent background."
@@ -245,7 +247,8 @@ async function createFallbackPortrait(source: Buffer) {
       position: "attention",
       background: "#ffffff"
     })
-    .modulate({ saturation: 0.92, brightness: 1.01 })
+    .modulate({ saturation: 0.88, brightness: 1.08 })
+    .linear([0.95, 0.98, 1.04, 1], [4, 4, 8, 0])
     .normalise()
     .png()
     .toBuffer();
