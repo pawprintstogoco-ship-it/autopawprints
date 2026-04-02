@@ -433,15 +433,15 @@ export async function getOrderByDownloadToken(token: string) {
 
 export async function storeCustomerUpload({
   orderId,
+  buyerEmail,
   petName,
-  notes,
   originalName,
   mimeType,
   fileBuffer
 }: {
   orderId: string;
+  buyerEmail: string;
   petName: string;
-  notes?: string;
   originalName: string;
   mimeType: string;
   fileBuffer: Buffer;
@@ -462,6 +462,14 @@ export async function storeCustomerUpload({
     throw new Error("Pet name is required");
   }
 
+  if (!buyerEmail.trim()) {
+    throw new Error("Email address is required");
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+    throw new Error("Please enter a valid email address");
+  }
+
   if (!mimeType.startsWith("image/")) {
     throw new Error("Only image uploads are supported");
   }
@@ -477,7 +485,6 @@ export async function storeCustomerUpload({
     data: {
       orderId,
       petName,
-      notes,
       originalName,
       mimeType,
       storageKey,
@@ -495,6 +502,7 @@ export async function storeCustomerUpload({
       id: orderId
     },
     data: {
+      buyerEmail,
       status: orderStatus,
       photoReceivedAt: new Date(),
       auditLog: {

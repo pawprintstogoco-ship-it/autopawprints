@@ -13,9 +13,17 @@ export async function POST(
   }
 
   const formData = await request.formData();
+  const buyerEmail = String(formData.get("buyerEmail") ?? "").trim();
   const petName = String(formData.get("petName") ?? "");
-  const notes = String(formData.get("notes") ?? "");
   const photo = formData.get("photo");
+
+  if (!buyerEmail) {
+    return NextResponse.json({ error: "Email address is required" }, { status: 400 });
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+    return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
+  }
 
   if (!(photo instanceof File)) {
     return NextResponse.json({ error: "Photo upload is required" }, { status: 400 });
@@ -24,8 +32,8 @@ export async function POST(
   try {
     await storeCustomerUpload({
       orderId: order.id,
+      buyerEmail,
       petName,
-      notes,
       originalName: photo.name,
       mimeType: photo.type,
       fileBuffer: Buffer.from(await photo.arrayBuffer())

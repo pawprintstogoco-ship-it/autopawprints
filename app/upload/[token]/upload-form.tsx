@@ -68,6 +68,18 @@ export function UploadForm({ token }: { token: string }) {
   return (
     <form className="upload-form-grid" onSubmit={handleSubmit}>
       <label className="upload-field">
+        <span className="upload-field-label">Email Address</span>
+        <input
+          className="upload-text-input"
+          type="email"
+          name="buyerEmail"
+          placeholder="Enter your email address..."
+          autoComplete="email"
+          required
+        />
+      </label>
+
+      <label className="upload-field">
         <span className="upload-field-label">Pet Name</span>
         <input
           className="upload-text-input"
@@ -82,11 +94,9 @@ export function UploadForm({ token }: { token: string }) {
         <span className="upload-field-label">New Photo</span>
         <span className="upload-file-drop">
           <span className="upload-file-icon" aria-hidden="true">
-            ＋
+            +
           </span>
-          <span className="upload-file-copy">
-            {selectedFileName || "Tap to upload"}
-          </span>
+          <span className="upload-file-copy">{selectedFileName || "Tap to upload"}</span>
           <input
             className="upload-file-input"
             type="file"
@@ -98,16 +108,6 @@ export function UploadForm({ token }: { token: string }) {
             }
           />
         </span>
-      </label>
-
-      <label className="upload-field">
-        <span className="upload-field-label">Notes for Artist</span>
-        <textarea
-          className="upload-textarea"
-          name="notes"
-          rows={4}
-          placeholder="Any specific details we should focus on?"
-        />
       </label>
 
       <div className="muted upload-form-note">
@@ -136,7 +136,7 @@ export function UploadForm({ token }: { token: string }) {
         ) : (
           <>
             <span>Submit photo</span>
-            <span aria-hidden="true">→</span>
+            <span aria-hidden="true">-&gt;</span>
           </>
         )}
       </button>
