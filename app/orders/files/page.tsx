@@ -35,7 +35,7 @@ export default async function OrderFilesPage() {
               <article key={upload.id} className="card stack">
                 <img
                   alt={`Upload for ${upload.petName}`}
-                  src={upload.thumbnailSrc}
+                  src={`/api/admin/uploads/${upload.id}/thumbnail`}
                   loading="lazy"
                   style={{ aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16 }}
                 />

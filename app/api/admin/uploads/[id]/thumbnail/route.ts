@@ -19,49 +19,26 @@ export async function GET(
   await requireAdminSession();
   const { id } = await context.params;
 
-  const artifact = await prisma.artifact.findUnique({
+  const upload = await prisma.customerUpload.findUnique({
     where: {
       id
     }
   });
 
-  if (!artifact) {
-    return NextResponse.json({ error: "Artifact not found" }, { status: 404 });
+  if (!upload) {
+    return NextResponse.json({ error: "Upload not found" }, { status: 404 });
   }
 
   try {
-    const file = await getBuffer(artifact.storageKey);
+    const file = await getBuffer(upload.storageKey);
     return new NextResponse(file, {
       headers: {
-        "content-type": getMimeTypeForStorageKey(artifact.storageKey, artifact.mimeType),
+        "content-type": getMimeTypeForStorageKey(upload.storageKey, upload.mimeType),
         "cache-control": "private, max-age=60"
       }
     });
   } catch {
-    const latestUpload = await prisma.customerUpload.findFirst({
-      where: {
-        orderId: artifact.orderId
-      },
-      orderBy: {
-        createdAt: "desc"
-      }
-    });
-
-    if (latestUpload) {
-      try {
-        const uploadBuffer = await getBuffer(latestUpload.storageKey);
-        return new NextResponse(uploadBuffer, {
-          headers: {
-            "content-type": getMimeTypeForStorageKey(latestUpload.storageKey, latestUpload.mimeType),
-            "cache-control": "private, max-age=60"
-          }
-        });
-      } catch {
-        // Fall through to SVG placeholder below.
-      }
-    }
-
-    return new NextResponse(buildFallbackSvg(`Missing ${artifact.kind.replaceAll("_", " ")}`), {
+    return new NextResponse(buildFallbackSvg(`Upload for ${upload.petName}`), {
       headers: {
         "content-type": "image/svg+xml",
         "cache-control": "private, max-age=60"
