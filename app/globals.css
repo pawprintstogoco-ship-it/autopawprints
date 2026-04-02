@@ -212,6 +212,32 @@ select {
   background: rgba(255, 255, 255, 0.9);
 }
 
+.progressBar {
+  overflow: hidden;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(39, 33, 27, 0.09);
+}
+
+.progressBarFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--accent) 0%, #d29054 100%);
+  transition: width 0.15s ease-out;
+}
+
+.progressLabel {
+  font-size: 0.94rem;
+}
+
+.errorBanner {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(163, 72, 63, 0.2);
+  background: rgba(163, 72, 63, 0.08);
+  color: var(--danger);
+}
+
 .columns {
   display: grid;
   grid-template-columns: 2fr 1fr;
