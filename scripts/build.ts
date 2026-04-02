@@ -12,11 +12,17 @@ function run(command: string, args: string[]) {
   }
 }
 
-if (process.env.SKIP_PRISMA_GENERATE !== "true") {
+const isHostedBuild = process.env.VERCEL === "1" || process.env.CI === "true";
+const shouldRunPrismaGenerate =
+  process.env.SKIP_PRISMA_GENERATE !== "true" && !isHostedBuild;
+const shouldRunDbPush =
+  process.env.SKIP_DB_PUSH !== "true" && !isHostedBuild;
+
+if (shouldRunPrismaGenerate) {
   run("npx", ["prisma", "generate"]);
 }
 
-if (process.env.SKIP_DB_PUSH !== "true") {
+if (shouldRunDbPush) {
   run("npx", ["prisma", "db", "push"]);
 }
 
