@@ -1,5 +1,4 @@
 import path from "node:path";
-import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import { requireEnv } from "@/lib/env";
 import { putBuffer } from "@/lib/storage";
@@ -14,7 +13,6 @@ type RenderInput = {
 export type RenderOutput = {
   previewKey: string;
   finalPngKey: string;
-  finalPdfKey: string;
   blurScore: number;
   width: number;
   height: number;
@@ -54,32 +52,18 @@ export async function renderPortrait({
     .toBuffer();
   const metadata = await sharp(finalPngBuffer).metadata();
 
-  const pdf = await PDFDocument.create();
-  const page = pdf.addPage([FINAL_WIDTH, FINAL_HEIGHT]);
-  const pngImage = await pdf.embedPng(finalPngBuffer);
-  page.drawImage(pngImage, {
-    x: 0,
-    y: 0,
-    width: FINAL_WIDTH,
-    height: FINAL_HEIGHT
-  });
-  const pdfBuffer = Buffer.from(await pdf.save());
-
   const prefix = `orders/${orderId}/artifacts/v${version}`;
   const previewKey = `${prefix}/preview.png`;
   const finalPngKey = `${prefix}/final.png`;
-  const finalPdfKey = `${prefix}/final.pdf`;
 
   await Promise.all([
     putBuffer(previewKey, previewBuffer),
-    putBuffer(finalPngKey, finalPngBuffer),
-    putBuffer(finalPdfKey, pdfBuffer)
+    putBuffer(finalPngKey, finalPngBuffer)
   ]);
 
   return {
     previewKey,
     finalPngKey,
-    finalPdfKey,
     blurScore,
     width: metadata.width ?? width,
     height: metadata.height ?? height

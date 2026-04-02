@@ -493,7 +493,7 @@ export async function processRenderJob(renderJobId: string) {
   ]);
 
   const source = await getBuffer(upload.storageKey);
-  const version = Math.floor(artifactCount / 3) + 1;
+  const version = Math.floor(artifactCount / 2) + 1;
   const output = await renderPortrait({
     source,
     petName: upload.petName,
@@ -519,14 +519,6 @@ export async function processRenderJob(renderJobId: string) {
           version,
           storageKey: output.finalPngKey,
           mimeType: "image/png"
-        },
-        {
-          orderId: order.id,
-          renderJobId: renderJob.id,
-          kind: ArtifactKind.FINAL_PDF,
-          version,
-          storageKey: output.finalPdfKey,
-          mimeType: "application/pdf"
         }
       ]
     }),
