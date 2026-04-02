@@ -148,9 +148,19 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
       { input: posterBackground },
       { input: portrait, left: artLeft, top: artTop },
       { input: titleSafeBand },
-      { input: firstLineOverlay, left: 60, top: title.firstLineTop },
+      {
+        input: firstLineOverlay.buffer,
+        left: Math.round((FINAL_WIDTH - firstLineOverlay.width) / 2),
+        top: title.firstLineTop
+      },
       ...(secondLineOverlay
-        ? [{ input: secondLineOverlay, left: 60, top: title.secondLineTop }]
+        ? [
+            {
+              input: secondLineOverlay.buffer,
+              left: Math.round((FINAL_WIDTH - secondLineOverlay.width) / 2),
+              top: title.secondLineTop
+            }
+          ]
         : [])
     ])
     .png()
@@ -327,7 +337,7 @@ async function createTitleTextLayer(
   width: number,
   height: number
 ) {
-  return sharp({
+  const rendered = await sharp({
     text: {
       text: `<span foreground="#4a3727">${escapePangoText(text)}</span>`,
       font: `Title ${fontSize}px`,
@@ -338,6 +348,17 @@ async function createTitleTextLayer(
       rgba: true
     }
   })
+    .trim({
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      threshold: 1
+    })
     .png()
     .toBuffer();
+
+  const metadata = await sharp(rendered).metadata();
+
+  return {
+    buffer: rendered,
+    width: metadata.width ?? width
+  };
 }
