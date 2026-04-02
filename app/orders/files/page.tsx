@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
-import { getAdminFileGallery } from "@/lib/orders";
+import { getAdminUploadGallery } from "@/lib/orders";
 import { getPublicFileUrl } from "@/lib/storage";
 
 export default async function OrderFilesPage() {
   await requireAdminSession();
-  const { uploads, artifacts } = await getAdminFileGallery();
+  const uploads = await getAdminUploadGallery();
 
   return (
     <main className="shell">
       <section className="hero">
-        <div className="eyebrow">Admin files</div>
-        <h1>Uploads and generated artwork.</h1>
+        <div className="eyebrow">Admin uploads</div>
+        <h1>Customer upload management.</h1>
         <p>
-          Review every customer upload, preview, and final image file in one place.
+          Review and remove original customer-uploaded photos from one place.
         </p>
       </section>
 
@@ -21,6 +21,9 @@ export default async function OrderFilesPage() {
         <div className="actions">
           <Link href="/orders" className="buttonSecondary">
             Back to orders
+          </Link>
+          <Link href="/orders/generated" className="buttonSecondary">
+            Generated images
           </Link>
         </div>
       </section>
@@ -38,33 +41,19 @@ export default async function OrderFilesPage() {
                 />
                 <strong>{upload.petName}</strong>
                 <span className="muted">{upload.originalName}</span>
-                <span className="muted">{upload.order.buyerName}</span>
-                <Link href={`/orders/${upload.orderId}`} className="mono">
-                  Receipt {upload.order.receiptId}
+                <span className="muted">Buyer: {upload.order.buyerName}</span>
+                <span className="muted">Status: {upload.order.status.replaceAll("_", " ")}</span>
+                <span className="mono">Order ID: {upload.orderId}</span>
+                <Link href={`/orders/${upload.orderId}`} className="buttonSecondary">
+                  Open order {upload.order.receiptId}
                 </Link>
                 <span className="muted">{upload.createdAt.toLocaleString()}</span>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel panel-pad stack">
-          <div className="eyebrow">Generated files</div>
-          <div className="cards">
-            {artifacts.map((artifact) => (
-              <article key={artifact.id} className="card stack">
-                <img
-                  alt={`${artifact.kind} for ${artifact.order.buyerName}`}
-                  src={getPublicFileUrl(artifact.storageKey)}
-                  style={{ aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16 }}
-                />
-                <strong>{artifact.kind.replaceAll("_", " ")}</strong>
-                <span className="muted">{artifact.order.buyerName}</span>
-                <Link href={`/orders/${artifact.orderId}`} className="mono">
-                  Receipt {artifact.order.receiptId}
-                </Link>
-                <span className="muted">Version {artifact.version}</span>
-                <span className="muted">{artifact.createdAt.toLocaleString()}</span>
+                <form action={`/api/admin/uploads/${upload.id}/delete`} method="post">
+                  <input type="hidden" name="redirectTo" value="/orders/files" />
+                  <button className="buttonSecondary" type="submit">
+                    Delete upload
+                  </button>
+                </form>
               </article>
             ))}
           </div>

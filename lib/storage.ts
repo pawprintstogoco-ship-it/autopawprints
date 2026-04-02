@@ -1,4 +1,3 @@
-import { requireEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
 type StoredFile = {
@@ -64,11 +63,18 @@ export async function getBuffer(key: string) {
   return Buffer.from(object.data);
 }
 
+export async function deleteObject(key: string) {
+  await prisma.binaryObject.deleteMany({
+    where: {
+      storageKey: key
+    }
+  });
+}
+
 export function getPublicFileUrl(key: string) {
-  const { APP_URL } = requireEnv();
   const safePath = key
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-  return `${APP_URL}/api/files/${safePath}`;
+  return `/api/files/${safePath}`;
 }

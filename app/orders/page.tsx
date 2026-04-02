@@ -32,7 +32,10 @@ export default async function OrdersPage({
             Etsy pilot setup
           </Link>
           <Link href="/orders/files" className="buttonSecondary">
-            File gallery
+            Uploads
+          </Link>
+          <Link href="/orders/generated" className="buttonSecondary">
+            Generated images
           </Link>
           <Link href="/orders" className="buttonSecondary">
             All

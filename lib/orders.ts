@@ -10,7 +10,7 @@ import { enqueueDelivery, enqueueRenderJob } from "@/lib/queue";
 import { buildDigitalSaleMessage } from "@/lib/etsy";
 import { analyzeImage, renderPortrait } from "@/lib/render";
 import { scheduleMissingPhotoReminders } from "@/lib/reminders";
-import { getBuffer, putBuffer } from "@/lib/storage";
+import { deleteObject, getBuffer, putBuffer } from "@/lib/storage";
 import { createToken } from "@/lib/tokens";
 import { requireEnv } from "@/lib/env";
 
@@ -274,32 +274,77 @@ export async function getDashboardOrders(status?: OrderStatus) {
   }));
 }
 
-export async function getAdminFileGallery() {
-  const [uploads, artifacts] = await Promise.all([
-    prisma.customerUpload.findMany({
-      include: {
-        order: true
-      },
-      orderBy: {
-        createdAt: "desc"
+export async function getAdminUploadGallery() {
+  return prisma.customerUpload.findMany({
+    include: {
+      order: true
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+}
+
+export async function getAdminGeneratedGallery() {
+  return prisma.artifact.findMany({
+    where: {
+      kind: {
+        in: [ArtifactKind.PREVIEW, ArtifactKind.FINAL_PNG]
+      }
+    },
+    include: {
+      order: true
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+}
+
+export async function deleteCustomerUploadById(uploadId: string) {
+  const upload = await prisma.customerUpload.findUnique({
+    where: {
+      id: uploadId
+    }
+  });
+
+  if (!upload) {
+    throw new Error("Upload not found");
+  }
+
+  await Promise.all([
+    prisma.customerUpload.delete({
+      where: {
+        id: uploadId
       }
     }),
-    prisma.artifact.findMany({
-      where: {
-        kind: {
-          in: [ArtifactKind.PREVIEW, ArtifactKind.FINAL_PNG]
-        }
-      },
-      include: {
-        order: true
-      },
-      orderBy: {
-        createdAt: "desc"
-      }
-    })
+    deleteObject(upload.storageKey)
   ]);
 
-  return { uploads, artifacts };
+  return upload;
+}
+
+export async function deleteArtifactById(artifactId: string) {
+  const artifact = await prisma.artifact.findUnique({
+    where: {
+      id: artifactId
+    }
+  });
+
+  if (!artifact) {
+    throw new Error("Generated image not found");
+  }
+
+  await Promise.all([
+    prisma.artifact.delete({
+      where: {
+        id: artifactId
+      }
+    }),
+    deleteObject(artifact.storageKey)
+  ]);
+
+  return artifact;
 }
 
 export async function getOrderById(orderId: string) {
