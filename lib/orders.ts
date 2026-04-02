@@ -10,7 +10,13 @@ import { enqueueDelivery, enqueueRenderJob } from "@/lib/queue";
 import { buildDigitalSaleMessage } from "@/lib/etsy";
 import { analyzeImage, renderPortrait } from "@/lib/render";
 import { scheduleMissingPhotoReminders } from "@/lib/reminders";
-import { deleteObject, getBuffer, putBuffer } from "@/lib/storage";
+import {
+  deleteObject,
+  getBuffer,
+  getInlineImagePlaceholder,
+  getInlineImageSrc,
+  putBuffer
+} from "@/lib/storage";
 import { createToken } from "@/lib/tokens";
 import { requireEnv } from "@/lib/env";
 
@@ -275,7 +281,7 @@ export async function getDashboardOrders(status?: OrderStatus) {
 }
 
 export async function getAdminUploadGallery() {
-  return prisma.customerUpload.findMany({
+  const uploads = await prisma.customerUpload.findMany({
     include: {
       order: true
     },
@@ -283,10 +289,19 @@ export async function getAdminUploadGallery() {
       createdAt: "desc"
     }
   });
+
+  return Promise.all(
+    uploads.map(async (upload) => ({
+      ...upload,
+      thumbnailSrc:
+        (await getInlineImageSrc(upload.storageKey, upload.mimeType)) ??
+        getInlineImagePlaceholder(`Upload for ${upload.petName}`)
+    }))
+  );
 }
 
 export async function getAdminGeneratedGallery() {
-  return prisma.artifact.findMany({
+  const artifacts = await prisma.artifact.findMany({
     where: {
       kind: {
         in: [ArtifactKind.PREVIEW, ArtifactKind.FINAL_PNG]
@@ -299,6 +314,55 @@ export async function getAdminGeneratedGallery() {
       createdAt: "desc"
     }
   });
+
+  const orderIds = [...new Set(artifacts.map((artifact) => artifact.orderId))];
+  const uploads = await prisma.customerUpload.findMany({
+    where: {
+      orderId: {
+        in: orderIds
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+
+  const uploadsByOrderId = new Map<string, typeof uploads>();
+
+  for (const upload of uploads) {
+    const existingUploads = uploadsByOrderId.get(upload.orderId) ?? [];
+    existingUploads.push(upload);
+    uploadsByOrderId.set(upload.orderId, existingUploads);
+  }
+
+  return Promise.all(
+    artifacts.map(async (artifact) => {
+      const artifactThumbnail = await getInlineImageSrc(artifact.storageKey, artifact.mimeType);
+
+      if (artifactThumbnail) {
+        return {
+          ...artifact,
+          thumbnailSrc: artifactThumbnail
+        };
+      }
+
+      for (const upload of uploadsByOrderId.get(artifact.orderId) ?? []) {
+        const uploadThumbnail = await getInlineImageSrc(upload.storageKey, upload.mimeType);
+
+        if (uploadThumbnail) {
+          return {
+            ...artifact,
+            thumbnailSrc: uploadThumbnail
+          };
+        }
+      }
+
+      return {
+        ...artifact,
+        thumbnailSrc: getInlineImagePlaceholder(`Missing ${artifact.kind.replaceAll("_", " ")}`)
+      };
+    })
+  );
 }
 
 export async function deleteCustomerUploadById(uploadId: string) {
@@ -471,7 +535,7 @@ export async function storeCustomerUpload({
   }
 
   const storageKey = `orders/${orderId}/uploads/${Date.now()}-${sanitizeFileName(originalName)}`;
-  await putBuffer(storageKey, fileBuffer);
+  await putBuffer(storageKey, fileBuffer, mimeType);
 
   const upload = await prisma.customerUpload.create({
     data: {

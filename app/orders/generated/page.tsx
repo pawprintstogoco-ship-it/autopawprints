@@ -34,7 +34,7 @@ export default async function GeneratedFilesPage() {
             <article key={artifact.id} className="card stack">
               <img
                 alt={`${artifact.kind} for ${artifact.order.buyerName}`}
-                src={`/api/admin/artifacts/${artifact.id}/thumbnail`}
+                src={artifact.thumbnailSrc}
                 loading="lazy"
                 style={{ aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16 }}
               />

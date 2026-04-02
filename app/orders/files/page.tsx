@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { getAdminUploadGallery } from "@/lib/orders";
-import { getPublicFileUrl } from "@/lib/storage";
 
 export default async function OrderFilesPage() {
   await requireAdminSession();
@@ -36,7 +35,8 @@ export default async function OrderFilesPage() {
               <article key={upload.id} className="card stack">
                 <img
                   alt={`Upload for ${upload.petName}`}
-                  src={getPublicFileUrl(upload.storageKey)}
+                  src={upload.thumbnailSrc}
+                  loading="lazy"
                   style={{ aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16 }}
                 />
                 <strong>{upload.petName}</strong>
