@@ -31,7 +31,11 @@ export default async function DownloadPage({
         {order.artifacts
           .filter((artifact) => artifact.kind === "FINAL_PNG")
           .map((artifact) => (
-            <a href={getPublicFileUrl(artifact.storageKey)} key={artifact.id} className="card stack">
+            <a
+              href={getPublicFileUrl(artifact.storageKey)}
+              key={artifact.id}
+              className="card stack"
+            >
               <strong>{artifact.kind.replaceAll("_", " ")}</strong>
               <span className="muted">{artifact.mimeType}</span>
             </a>

@@ -31,6 +31,9 @@ export default async function OrdersPage({
           <Link href="/etsy" className="button">
             Etsy pilot setup
           </Link>
+          <Link href="/orders/files" className="buttonSecondary">
+            File gallery
+          </Link>
           <Link href="/orders" className="buttonSecondary">
             All
           </Link>

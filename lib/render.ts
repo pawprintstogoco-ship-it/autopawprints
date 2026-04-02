@@ -53,8 +53,9 @@ export async function renderPortrait({
   const metadata = await sharp(finalPngBuffer).metadata();
 
   const prefix = `orders/${orderId}/artifacts/v${version}`;
-  const previewKey = `${prefix}/preview.png`;
-  const finalPngKey = `${prefix}/final.png`;
+  const artifactBaseName = buildArtifactBaseName(petName);
+  const previewKey = `${prefix}/${artifactBaseName}_preview.png`;
+  const finalPngKey = `${prefix}/${artifactBaseName}_final.png`;
 
   await Promise.all([
     putBuffer(previewKey, previewBuffer),
@@ -265,6 +266,26 @@ function formatDisplayName(name: string) {
     .normalize("NFKD")
     .replace(/[^\x20-\x7E]/g, "")
     .toUpperCase();
+}
+
+function buildArtifactBaseName(name: string) {
+  const safeName = formatDisplayName(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "your_pet";
+  const now = new Date();
+  const date = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+  const time = [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+    String(now.getSeconds()).padStart(2, "0")
+  ].join("");
+
+  return `${safeName}_${date}_${time}`;
 }
 
 function buildTitleLayout(name: string) {

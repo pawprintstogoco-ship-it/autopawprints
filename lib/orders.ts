@@ -274,6 +274,34 @@ export async function getDashboardOrders(status?: OrderStatus) {
   }));
 }
 
+export async function getAdminFileGallery() {
+  const [uploads, artifacts] = await Promise.all([
+    prisma.customerUpload.findMany({
+      include: {
+        order: true
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    }),
+    prisma.artifact.findMany({
+      where: {
+        kind: {
+          in: [ArtifactKind.PREVIEW, ArtifactKind.FINAL_PNG]
+        }
+      },
+      include: {
+        order: true
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    })
+  ]);
+
+  return { uploads, artifacts };
+}
+
 export async function getOrderById(orderId: string) {
   return prisma.order.findUnique({
     where: {
