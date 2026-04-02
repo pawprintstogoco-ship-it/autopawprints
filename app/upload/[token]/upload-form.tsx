@@ -8,6 +8,7 @@ export function UploadForm({ token }: { token: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedFileName, setSelectedFileName] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,26 +66,54 @@ export function UploadForm({ token }: { token: string }) {
   }
 
   return (
-    <form className="stack" onSubmit={handleSubmit}>
-      <div className="muted">
-        Re-uploading a new photo will replace the current source image for the next render.
-      </div>
-      <label className="field">
-        <span>Pet name</span>
-        <input type="text" name="petName" required />
-      </label>
-      <label className="field">
-        <span>Photo</span>
-        <input type="file" name="photo" accept="image/*" required />
-      </label>
-      <label className="field">
-        <span>Notes</span>
-        <textarea
-          name="notes"
-          rows={5}
-          placeholder="Anything we should know about the portrait?"
+    <form className="upload-form-grid" onSubmit={handleSubmit}>
+      <label className="upload-field">
+        <span className="upload-field-label">Pet Name</span>
+        <input
+          className="upload-text-input"
+          type="text"
+          name="petName"
+          placeholder="Enter pet name..."
+          required
         />
       </label>
+
+      <label className="upload-field">
+        <span className="upload-field-label">New Photo</span>
+        <span className="upload-file-drop">
+          <span className="upload-file-icon" aria-hidden="true">
+            ＋
+          </span>
+          <span className="upload-file-copy">
+            {selectedFileName || "Tap to upload"}
+          </span>
+          <input
+            className="upload-file-input"
+            type="file"
+            name="photo"
+            accept="image/*"
+            required
+            onChange={(event) =>
+              setSelectedFileName(event.currentTarget.files?.[0]?.name ?? "")
+            }
+          />
+        </span>
+      </label>
+
+      <label className="upload-field">
+        <span className="upload-field-label">Notes for Artist</span>
+        <textarea
+          className="upload-textarea"
+          name="notes"
+          rows={4}
+          placeholder="Any specific details we should focus on?"
+        />
+      </label>
+
+      <div className="muted upload-form-note">
+        Re-uploading a new photo will replace the current source image for the next render.
+      </div>
+
       {isSubmitting ? (
         <div className="stack" aria-live="polite">
           <div className="progressBar" aria-hidden="true">
@@ -98,14 +127,17 @@ export function UploadForm({ token }: { token: string }) {
           {errorMessage}
         </div>
       ) : null}
-      <button className="button" type="submit" disabled={isSubmitting}>
+      <button className="upload-submit-button" type="submit" disabled={isSubmitting}>
         {isSubmitting ? (
           <span className="buttonContent">
             <span className="spinner" aria-hidden="true" />
             Uploading photo...
           </span>
         ) : (
-          "Submit photo"
+          <>
+            <span>Submit photo</span>
+            <span aria-hidden="true">→</span>
+          </>
         )}
       </button>
     </form>
