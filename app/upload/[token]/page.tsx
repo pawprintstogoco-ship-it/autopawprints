@@ -39,10 +39,22 @@ export default async function UploadPage({
       <header className="upload-topbar">
         <div className="upload-topbar-inner">
           <div className="upload-brand">
-            <span className="upload-brand-mark" aria-hidden="true">
-              Paw
+            <img
+              src="/branding/pawprints-2021-logo-square.svg"
+              alt="Pawprints logo"
+              style={{ width: 56, height: 34, objectFit: "contain" }}
+            />
+            <span
+              className="upload-brand-name"
+              style={{
+                fontFamily: "var(--upload-body), Plus Jakarta Sans, sans-serif",
+                fontStyle: "normal",
+                fontWeight: 700,
+                letterSpacing: "-0.02em"
+              }}
+            >
+              Pawprints
             </span>
-            <span className="upload-brand-name">PawPrints</span>
           </div>
           <div className="upload-avatar" aria-hidden="true">
             PP
