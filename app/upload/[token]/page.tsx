@@ -10,11 +10,13 @@ export const metadata: Metadata = {
   description: "Upload your photo for a PawprintsCA artist to work on your portrait.",
   openGraph: {
     title: "PawprintsCA Upload",
-    description: "Upload your photo for a PawprintsCA artist to work on your portrait."
+    description: "Upload your photo for a PawprintsCA artist to work on your portrait.",
+    images: ["/brand/pawprintsdrawing2.png"]
   },
   twitter: {
     title: "PawprintsCA Upload",
-    description: "Upload your photo for a PawprintsCA artist to work on your portrait."
+    description: "Upload your photo for a PawprintsCA artist to work on your portrait.",
+    images: ["/brand/pawprintsdrawing2.png"]
   }
 };
 

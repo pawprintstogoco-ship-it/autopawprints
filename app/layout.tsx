@@ -15,7 +15,17 @@ const bodyFont = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   metadataBase: new URL("https://pawprints.ca"),
   title: "PawprintsCA",
-  description: "Upload your photo for a PawprintsCA artist to work on your portrait."
+  description: "Upload your photo for a PawprintsCA artist to work on your portrait.",
+  openGraph: {
+    title: "PawprintsCA",
+    description: "Upload your photo for a PawprintsCA artist to work on your portrait.",
+    images: ["/brand/pawprintsdrawing2.png"]
+  },
+  twitter: {
+    title: "PawprintsCA",
+    description: "Upload your photo for a PawprintsCA artist to work on your portrait.",
+    images: ["/brand/pawprintsdrawing2.png"]
+  }
 };
 
 export default function RootLayout({
