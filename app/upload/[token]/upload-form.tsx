@@ -164,7 +164,7 @@ export function UploadForm({ token }: { token: string }) {
         ) : null}
       </AnimatePresence>
 
-      <AnimatedBlock delay={0.26}>
+      <AnimatedBlock delay={0.26} className="uploadSubmitDock">
         <motion.button
           className="uploadSubmitButton"
           type="submit"

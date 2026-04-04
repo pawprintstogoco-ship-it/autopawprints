@@ -1,5 +1,16 @@
 import type { Metadata } from "next";
+import { Newsreader, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+
+const displayFont = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-display"
+});
+
+const bodyFont = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-body"
+});
 
 export const metadata: Metadata = {
   title: "PawPrints Automation",
@@ -13,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={`${displayFont.variable} ${bodyFont.variable}`}>{children}</body>
     </html>
   );
 }

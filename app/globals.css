@@ -25,7 +25,7 @@ body {
   background:
     radial-gradient(circle at top left, rgba(191, 123, 67, 0.15), transparent 30%),
     linear-gradient(180deg, #f7f1e8 0%, #f0e4d4 100%);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-body), sans-serif;
 }
 
 a {
@@ -60,6 +60,7 @@ select {
   font-size: clamp(2.5rem, 5vw, 4.4rem);
   line-height: 0.95;
   letter-spacing: -0.04em;
+  font-family: var(--font-display), serif;
 }
 
 .hero p {
@@ -270,6 +271,38 @@ select {
   padding: 32px 0 56px;
 }
 
+.uploadMasthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.uploadBrandLink {
+  display: inline-flex;
+  align-items: center;
+}
+
+.uploadBrandLogo {
+  display: block;
+  height: auto;
+}
+
+.uploadBrandLogoLong {
+  width: min(240px, 46vw);
+}
+
+.uploadBrandLogoSquare {
+  display: none;
+  width: 54px;
+}
+
+.uploadMastheadMeta {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .uploadAura {
   position: absolute;
   width: 28rem;
@@ -347,7 +380,7 @@ select {
 .uploadSectionHeader h2,
 .uploadPortraitBody h3 {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-display), serif;
   font-weight: 500;
   letter-spacing: -0.04em;
   color: #3c291d;
@@ -366,6 +399,7 @@ select {
 .uploadFormNote,
 .progressLabel {
   color: #715d4b;
+  font-family: var(--font-body), sans-serif;
 }
 
 .uploadHeroCopy p {
@@ -558,6 +592,7 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   min-height: 56px;
   padding: 0 24px;
   border: none;
@@ -571,6 +606,10 @@ select {
 .uploadSubmitButton:disabled {
   cursor: wait;
   opacity: 0.8;
+}
+
+.uploadSubmitDock {
+  display: grid;
 }
 
 .uploadPortraitCard {
@@ -677,11 +716,27 @@ select {
     justify-content: flex-start;
     padding-bottom: 0;
   }
+
+  .uploadLayout {
+    gap: 18px;
+  }
 }
 
 @media (max-width: 640px) {
   .uploadShell {
-    padding: 20px 0 40px;
+    padding: 18px 0 28px;
+  }
+
+  .uploadMasthead {
+    margin-bottom: 18px;
+  }
+
+  .uploadBrandLogoLong {
+    display: none;
+  }
+
+  .uploadBrandLogoSquare {
+    display: block;
   }
 
   .uploadFormCard,
@@ -696,6 +751,12 @@ select {
 
   .uploadHeroCopy h1 {
     max-width: none;
+    font-size: clamp(2.5rem, 14vw, 3.5rem);
+  }
+
+  .uploadHeroCopy p {
+    font-size: 0.96rem;
+    line-height: 1.55;
   }
 
   .uploadPortraitFrame {
@@ -707,5 +768,21 @@ select {
     padding-left: 18px;
     padding-right: 18px;
     padding-bottom: 18px;
+  }
+
+  .uploadGuidanceCard {
+    order: -1;
+  }
+
+  .uploadSubmitDock {
+    position: sticky;
+    bottom: 10px;
+    z-index: 10;
+    padding-top: 8px;
+  }
+
+  .uploadSubmitButton {
+    min-height: 58px;
+    box-shadow: 0 16px 28px rgba(90, 59, 40, 0.22);
   }
 }

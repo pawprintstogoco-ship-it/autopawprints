@@ -50,6 +50,24 @@ export default async function UploadPage({
       <div className="uploadAura uploadAuraRight" />
 
       <section className="shell uploadShell">
+        <header className="uploadMasthead">
+          <a href="/" className="uploadBrandLink" aria-label="PawPrints home">
+            <img
+              className="uploadBrandLogo uploadBrandLogoLong"
+              src="/brand/pawprints-longform.svg"
+              alt="PawPrints"
+            />
+            <img
+              className="uploadBrandLogo uploadBrandLogoSquare"
+              src="/brand/pawprints-square.svg"
+              alt="PawPrints"
+            />
+          </a>
+          <div className="uploadMastheadMeta">
+            <span className="uploadOrderMeta">Private order link</span>
+          </div>
+        </header>
+
         <div className="uploadIntro">
           <div className="uploadKickerRow">
             <span className="uploadStatusPill">{statusLabel}</span>
