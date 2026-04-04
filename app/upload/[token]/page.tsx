@@ -121,7 +121,7 @@ export default async function UploadPage({
                 ) : (
                   <img
                     alt="Artist sketching a pet portrait"
-                    src="/brand/artist-working.svg"
+                    src="/brand/pawprintsdrawing2.png"
                   />
                 )}
 
