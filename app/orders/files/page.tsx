@@ -8,16 +8,14 @@ export default async function OrderFilesPage() {
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="eyebrow">Admin uploads</div>
-        <h1>Customer upload management.</h1>
-        <p>
-          Review and remove original customer-uploaded photos from one place.
-        </p>
+      <section className="hero opsHero">
+        <div className="eyebrow">Internal operations</div>
+        <h1>Customer uploads.</h1>
+        <p>Review source photos and remove bad files without leaving operations.</p>
       </section>
 
-      <section className="panel panel-pad stack">
-        <div className="actions">
+      <section className="panel panel-pad stack opsPanel">
+        <div className="actions opsPrimaryActions">
           <Link href="/orders" className="buttonSecondary">
             Back to orders
           </Link>
@@ -28,16 +26,16 @@ export default async function OrderFilesPage() {
       </section>
 
       <section className="stack" style={{ marginTop: 18 }}>
-        <div className="panel panel-pad stack">
-          <div className="eyebrow">Customer uploads</div>
-          <div className="cards">
+        <div className="panel panel-pad stack opsPanel">
+          <div className="eyebrow">Upload library</div>
+          <div className="cards opsGallery">
             {uploads.map((upload) => (
-              <article key={upload.id} className="card stack">
+              <article key={upload.id} className="card stack opsMediaCard">
                 <img
                   alt={`Upload for ${upload.petName}`}
                   src={`/api/admin/uploads/${upload.id}/thumbnail`}
                   loading="lazy"
-                  style={{ aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16 }}
+                  className="opsMediaThumb"
                 />
                 <strong>{upload.petName}</strong>
                 <span className="muted">{upload.originalName}</span>

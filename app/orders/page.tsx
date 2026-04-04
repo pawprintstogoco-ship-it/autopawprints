@@ -14,20 +14,37 @@ export default async function OrdersPage({
   const params = (await searchParams) ?? {};
   const selectedStatus = statusOptions.find((option) => option === params.status);
   const orders = await getDashboardOrders(selectedStatus);
+  const awaitingPhotoCount = orders.filter((order) => order.status === OrderStatus.AWAITING_PHOTO).length;
+  const manualCount = orders.filter((order) => !order.pilotListingEligible).length;
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="eyebrow">Operations</div>
-        <h1>Orders in motion.</h1>
-        <p>
-          Paid orders flow through upload, render, approval, reminder, and
-          delivery states here.
-        </p>
+      <section className="hero opsHero">
+        <div className="eyebrow">Internal operations</div>
+        <h1>Order operations dashboard.</h1>
+        <p>Track every order, jump to actions quickly, and keep the production queue moving.</p>
       </section>
 
-      <section className="panel panel-pad stack">
-        <div className="actions">
+      <section className="panel panel-pad stack opsPanel">
+        <div className="cards opsSummaryCards">
+          <article className="card stack">
+            <div className="eyebrow">Visible orders</div>
+            <strong className="opsMetric">{orders.length}</strong>
+            <span className="muted">Filtered by selected status</span>
+          </article>
+          <article className="card stack">
+            <div className="eyebrow">Awaiting photo</div>
+            <strong className="opsMetric">{awaitingPhotoCount}</strong>
+            <span className="muted">Orders waiting for customer upload</span>
+          </article>
+          <article className="card stack">
+            <div className="eyebrow">Manual flow</div>
+            <strong className="opsMetric">{manualCount}</strong>
+            <span className="muted">Orders outside pilot listing</span>
+          </article>
+        </div>
+
+        <div className="actions opsPrimaryActions">
           <Link href="/etsy" className="button">
             Etsy pilot setup
           </Link>
@@ -37,54 +54,62 @@ export default async function OrdersPage({
           <Link href="/orders/generated" className="buttonSecondary">
             Generated images
           </Link>
-          <Link href="/orders" className="buttonSecondary">
-            All
-          </Link>
-          {statusOptions.map((status) => (
-            <Link
-              href={`/orders?status=${status}`}
-              className="buttonSecondary"
-              key={status}
-            >
-              {status.replaceAll("_", " ")}
-            </Link>
-          ))}
         </div>
 
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Receipt</th>
-              <th>Buyer</th>
-              <th>Status</th>
-              <th>Pilot</th>
-              <th>Photo</th>
-              <th>Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.id}>
-                <td>
-                  <Link href={`/orders/${order.id}`} className="mono">
-                    {order.receiptId}
-                  </Link>
-                </td>
-                <td>{order.buyerName}</td>
-                <td>
-                  <span className="badge">{order.status.replaceAll("_", " ")}</span>
-                </td>
-                <td>
-                  <span className="badge">
-                    {order.pilotListingEligible ? "Pilot listing" : "Manual"}
-                  </span>
-                </td>
-                <td>{order.latestUploadName ?? "Waiting for upload"}</td>
-                <td>{order.createdAt.toLocaleString()}</td>
+        <div className="actions opsFilterActions">
+          <Link href="/orders" className={selectedStatus ? "buttonSecondary" : "button"}>
+            All statuses
+          </Link>
+          {statusOptions.map((status) => {
+            const active = selectedStatus === status;
+            return (
+              <Link
+                href={`/orders?status=${status}`}
+                className={active ? "button" : "buttonSecondary"}
+                key={status}
+              >
+                {status.replaceAll("_", " ")}
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="opsTableWrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Receipt</th>
+                <th>Buyer</th>
+                <th>Status</th>
+                <th>Pilot</th>
+                <th>Photo</th>
+                <th>Updated</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.id}>
+                  <td>
+                    <Link href={`/orders/${order.id}`} className="mono">
+                      {order.receiptId}
+                    </Link>
+                  </td>
+                  <td>{order.buyerName}</td>
+                  <td>
+                    <span className="badge">{order.status.replaceAll("_", " ")}</span>
+                  </td>
+                  <td>
+                    <span className="badge">
+                      {order.pilotListingEligible ? "Pilot listing" : "Manual"}
+                    </span>
+                  </td>
+                  <td>{order.latestUploadName ?? "Waiting for upload"}</td>
+                  <td>{order.createdAt.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   );

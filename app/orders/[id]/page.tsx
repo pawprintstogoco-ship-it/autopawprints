@@ -21,8 +21,8 @@ export default async function OrderDetailPage({
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="eyebrow">Order detail</div>
+      <section className="hero opsHero">
+        <div className="eyebrow">Internal operations</div>
         <h1>Receipt {order.receiptId}</h1>
         <p>
           {order.buyerName} · {order.status.replaceAll("_", " ")}
@@ -30,8 +30,8 @@ export default async function OrderDetailPage({
       </section>
 
       <section className="columns">
-        <div className="panel panel-pad stack">
-          <div className="actions">
+        <div className="panel panel-pad stack opsPanel">
+          <div className="actions opsPrimaryActions">
             <form action={`/api/orders/${order.id}/approve`} method="post">
               <button className="button" type="submit">
                 Approve and deliver
@@ -54,12 +54,13 @@ export default async function OrderDetailPage({
             <img
               alt={`Preview for ${order.buyerName}`}
               src={getPublicFileUrl(preview.storageKey)}
+              className="opsDetailPreview"
             />
           ) : (
-            <div className="card">No preview yet.</div>
+            <div className="card opsEmptyCard">No preview yet.</div>
           )}
 
-          <div className="cards">
+          <div className="cards opsSummaryCards">
             <article className="card stack">
               <div className="eyebrow">Buyer</div>
               <strong>{order.buyerName}</strong>
@@ -85,20 +86,20 @@ export default async function OrderDetailPage({
         </div>
 
         <aside className="stack">
-          <section className="panel panel-pad stack">
+          <section className="panel panel-pad stack opsPanel">
             <div className="eyebrow">Artifacts</div>
             {order.artifacts.map((artifact) => (
               <a
                 href={getPublicFileUrl(artifact.storageKey)}
                 key={artifact.id}
-                className="card"
+                className="card opsLinkCard"
               >
                 {artifact.kind} v{artifact.version}
               </a>
             ))}
           </section>
 
-          <section className="panel panel-pad stack">
+          <section className="panel panel-pad stack opsPanel">
             <div className="eyebrow">Messages</div>
             {order.messageEvents.map((event) => (
               <div key={event.id} className="card stack">
@@ -109,7 +110,7 @@ export default async function OrderDetailPage({
             ))}
           </section>
 
-          <section className="panel panel-pad stack">
+          <section className="panel panel-pad stack opsPanel">
             <div className="eyebrow">Audit log</div>
             {order.auditLog.map((event) => (
               <div key={event.id} className="card stack">

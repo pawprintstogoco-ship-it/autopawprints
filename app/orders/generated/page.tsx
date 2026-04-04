@@ -8,16 +8,14 @@ export default async function GeneratedFilesPage() {
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="eyebrow">Generated images</div>
-        <h1>Preview and final image management.</h1>
-        <p>
-          Review and remove generated preview and final portrait images.
-        </p>
+      <section className="hero opsHero">
+        <div className="eyebrow">Internal operations</div>
+        <h1>Generated portraits.</h1>
+        <p>Review render outputs and remove bad generations from one gallery.</p>
       </section>
 
-      <section className="panel panel-pad stack">
-        <div className="actions">
+      <section className="panel panel-pad stack opsPanel">
+        <div className="actions opsPrimaryActions">
           <Link href="/orders" className="buttonSecondary">
             Back to orders
           </Link>
@@ -27,16 +25,16 @@ export default async function GeneratedFilesPage() {
         </div>
       </section>
 
-      <section className="panel panel-pad stack" style={{ marginTop: 18 }}>
+      <section className="panel panel-pad stack opsPanel" style={{ marginTop: 18 }}>
         <div className="eyebrow">Generated files</div>
-        <div className="cards">
+        <div className="cards opsGallery">
           {artifacts.map((artifact) => (
-            <article key={artifact.id} className="card stack">
+            <article key={artifact.id} className="card stack opsMediaCard">
               <img
                 alt={`${artifact.kind} for ${artifact.order.buyerName}`}
                 src={`/api/admin/artifacts/${artifact.id}/thumbnail`}
                 loading="lazy"
-                style={{ aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16 }}
+                className="opsMediaThumb"
               />
               <strong>{artifact.kind.replaceAll("_", " ")}</strong>
               <span className="muted">Buyer: {artifact.order.buyerName}</span>
