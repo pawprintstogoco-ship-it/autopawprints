@@ -52,9 +52,7 @@ export async function ingestOrderPaidWebhook(payload: EtsyWebhookPayload) {
       buyerEmail: payload.buyer_email,
       personalization: payload.personalization,
       listingId: payload.listing_id,
-      resourceUrl: payload.resource_url,
       pilotListingEligible,
-      pilotListingMatched,
       status: pilotListingEligible
         ? OrderStatus.AWAITING_PHOTO
         : OrderStatus.NEEDS_MANUAL_ATTENTION
@@ -69,67 +67,70 @@ export async function ingestOrderPaidWebhook(payload: EtsyWebhookPayload) {
       listingId: payload.listing_id,
       personalization: payload.personalization,
       pilotListingEligible,
-      pilotListingMatched,
-      intakeSource: "etsy_webhook",
-      resourceUrl: payload.resource_url,
       status: pilotListingEligible
         ? OrderStatus.AWAITING_PHOTO
         : OrderStatus.NEEDS_MANUAL_ATTENTION,
       uploadToken,
-      uploadTokenExpiresAt: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 30),
-      items: {
-        create:
-          payload.transactions?.map((transaction) => ({
+      uploadTokenExpiresAt: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 30)
+    },
+    select: {
+      id: true,
+      receiptId: true,
+      createdAt: true
+    }
+  });
+
+  await Promise.allSettled([
+    ...(
+      payload.transactions?.map((transaction) =>
+        prisma.orderItem.create({
+          data: {
+            orderId: order.id,
             transactionId: transaction.transaction_id,
             title: transaction.title,
             quantity: transaction.quantity ?? 1,
             priceAmount: transaction.price_amount,
             currencyCode: transaction.currency_code
-          })) ?? []
-      },
-      auditLog: {
-        create: [
-          {
-            action: "order.created",
-            metadata: {
-              payload,
-              pilotListingEligible
-            }
           }
-        ]
-      },
-      messageEvents: {
-        create: [
-          {
-            channel: MessageChannel.ETSY,
-            eventType: "sale_message.prepared",
-            body: saleMessage
-          }
-        ]
+        })
+      ) ?? []
+    ),
+    prisma.auditLog.create({
+      data: {
+        orderId: order.id,
+        action: "order.created",
+        metadata: {
+          payload,
+          pilotListingEligible
+        }
       }
-    },
-    include: {
-      items: true
-    }
-  });
+    }),
+    prisma.messageEvent.create({
+      data: {
+        orderId: order.id,
+        channel: MessageChannel.ETSY,
+        eventType: "sale_message.prepared",
+        body: saleMessage
+      }
+    })
+  ]);
 
   if (pilotListingEligible) {
     await scheduleMissingPhotoReminders(order.id, order.createdAt);
   } else {
-    await prisma.order.update({
-      where: {
-        id: order.id
-      },
-      data: {
-        messageEvents: {
-          create: {
+    await withQueryFallback(
+      "ingestOrderPaidWebhook pilot listing mismatch event",
+      () =>
+        prisma.messageEvent.create({
+          data: {
+            orderId: order.id,
             channel: MessageChannel.INTERNAL,
             eventType: "pilot_listing.mismatch",
             body: `Receipt ${order.receiptId} is outside the pilot listing and needs manual handling.`
           }
-        }
-      }
-    });
+        }),
+      null
+    );
   }
 
   return order;
@@ -259,18 +260,28 @@ export async function getDashboardOrders(status?: OrderStatus) {
       .filter((order) => !status || order.status === status);
 
     const [uploadRows, artifactRows] = await Promise.all([
-      prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
-        SELECT row_to_json(cu) AS "upload"
-        FROM "CustomerUpload" cu
-        ORDER BY cu."createdAt" DESC
-        LIMIT 500
-      `,
-      prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
-        SELECT row_to_json(a) AS "artifact"
-        FROM "Artifact" a
-        ORDER BY a."createdAt" DESC
-        LIMIT 500
-      `
+      withQueryFallback(
+        "getDashboardOrders uploads",
+        () =>
+          prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
+            SELECT row_to_json(cu) AS "upload"
+            FROM "CustomerUpload" cu
+            ORDER BY cu."createdAt" DESC
+            LIMIT 500
+          `,
+        [] as Array<{ upload: Record<string, unknown> }>
+      ),
+      withQueryFallback(
+        "getDashboardOrders artifacts",
+        () =>
+          prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
+            SELECT row_to_json(a) AS "artifact"
+            FROM "Artifact" a
+            ORDER BY a."createdAt" DESC
+            LIMIT 500
+          `,
+        [] as Array<{ artifact: Record<string, unknown> }>
+      )
     ]);
 
     const latestUploadByOrder = new Map<string, string>();
@@ -308,18 +319,28 @@ export async function getDashboardOrders(status?: OrderStatus) {
 export async function getAdminUploadGallery() {
   try {
     const [uploadRows, orderRows] = await Promise.all([
-      prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
-        SELECT row_to_json(cu) AS "upload"
-        FROM "CustomerUpload" cu
-        ORDER BY cu."createdAt" DESC
-        LIMIT 24
-      `,
-      prisma.$queryRaw<Array<{ order: Record<string, unknown> }>>`
-        SELECT row_to_json(o) AS "order"
-        FROM "Order" o
-        ORDER BY o."createdAt" DESC
-        LIMIT 200
-      `
+      withQueryFallback(
+        "getAdminUploadGallery uploads",
+        () =>
+          prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
+            SELECT row_to_json(cu) AS "upload"
+            FROM "CustomerUpload" cu
+            ORDER BY cu."createdAt" DESC
+            LIMIT 24
+          `,
+        [] as Array<{ upload: Record<string, unknown> }>
+      ),
+      withQueryFallback(
+        "getAdminUploadGallery orders",
+        () =>
+          prisma.$queryRaw<Array<{ order: Record<string, unknown> }>>`
+            SELECT row_to_json(o) AS "order"
+            FROM "Order" o
+            ORDER BY o."createdAt" DESC
+            LIMIT 200
+          `,
+        [] as Array<{ order: Record<string, unknown> }>
+      )
     ]);
 
     const orderMap = new Map(
@@ -361,18 +382,28 @@ export async function getAdminUploadGallery() {
 export async function getAdminGeneratedGallery() {
   try {
     const [artifactRows, orderRows] = await Promise.all([
-      prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
-        SELECT row_to_json(a) AS "artifact"
-        FROM "Artifact" a
-        ORDER BY a."createdAt" DESC
-        LIMIT 24
-      `,
-      prisma.$queryRaw<Array<{ order: Record<string, unknown> }>>`
-        SELECT row_to_json(o) AS "order"
-        FROM "Order" o
-        ORDER BY o."createdAt" DESC
-        LIMIT 200
-      `
+      withQueryFallback(
+        "getAdminGeneratedGallery artifacts",
+        () =>
+          prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
+            SELECT row_to_json(a) AS "artifact"
+            FROM "Artifact" a
+            ORDER BY a."createdAt" DESC
+            LIMIT 24
+          `,
+        [] as Array<{ artifact: Record<string, unknown> }>
+      ),
+      withQueryFallback(
+        "getAdminGeneratedGallery orders",
+        () =>
+          prisma.$queryRaw<Array<{ order: Record<string, unknown> }>>`
+            SELECT row_to_json(o) AS "order"
+            FROM "Order" o
+            ORDER BY o."createdAt" DESC
+            LIMIT 200
+          `,
+        [] as Array<{ order: Record<string, unknown> }>
+      )
     ]);
 
     const orderMap = new Map(
@@ -480,30 +511,50 @@ export async function getOrderById(orderId: string) {
     }
 
     const [uploads, artifacts, messageEvents, auditLog] = await Promise.all([
-      prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
-        SELECT row_to_json(cu) AS "upload"
-        FROM "CustomerUpload" cu
-        WHERE cu."orderId" = ${orderId}
-        ORDER BY cu."createdAt" DESC
-      `,
-      prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
-        SELECT row_to_json(a) AS "artifact"
-        FROM "Artifact" a
-        WHERE a."orderId" = ${orderId}
-        ORDER BY a."createdAt" DESC
-      `,
-      prisma.$queryRaw<Array<{ event: Record<string, unknown> }>>`
-        SELECT row_to_json(me) AS "event"
-        FROM "MessageEvent" me
-        WHERE me."orderId" = ${orderId}
-        ORDER BY me."createdAt" DESC
-      `,
-      prisma.$queryRaw<Array<{ audit: Record<string, unknown> }>>`
-        SELECT row_to_json(al) AS "audit"
-        FROM "AuditLog" al
-        WHERE al."orderId" = ${orderId}
-        ORDER BY al."createdAt" DESC
-      `
+      withQueryFallback(
+        "getOrderById uploads",
+        () =>
+          prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
+            SELECT row_to_json(cu) AS "upload"
+            FROM "CustomerUpload" cu
+            WHERE cu."orderId" = ${orderId}
+            ORDER BY cu."createdAt" DESC
+          `,
+        [] as Array<{ upload: Record<string, unknown> }>
+      ),
+      withQueryFallback(
+        "getOrderById artifacts",
+        () =>
+          prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
+            SELECT row_to_json(a) AS "artifact"
+            FROM "Artifact" a
+            WHERE a."orderId" = ${orderId}
+            ORDER BY a."createdAt" DESC
+          `,
+        [] as Array<{ artifact: Record<string, unknown> }>
+      ),
+      withQueryFallback(
+        "getOrderById message events",
+        () =>
+          prisma.$queryRaw<Array<{ event: Record<string, unknown> }>>`
+            SELECT row_to_json(me) AS "event"
+            FROM "MessageEvent" me
+            WHERE me."orderId" = ${orderId}
+            ORDER BY me."createdAt" DESC
+          `,
+        [] as Array<{ event: Record<string, unknown> }>
+      ),
+      withQueryFallback(
+        "getOrderById audit log",
+        () =>
+          prisma.$queryRaw<Array<{ audit: Record<string, unknown> }>>`
+            SELECT row_to_json(al) AS "audit"
+            FROM "AuditLog" al
+            WHERE al."orderId" = ${orderId}
+            ORDER BY al."createdAt" DESC
+          `,
+        [] as Array<{ audit: Record<string, unknown> }>
+      )
     ]);
 
     return {
@@ -570,20 +621,30 @@ export async function getOrderByUploadToken(token: string) {
     const orderId = String(rawOrder.id);
 
     const [uploads, finalArtifacts] = await Promise.all([
-      prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
-        SELECT row_to_json(cu) AS "upload"
-        FROM "CustomerUpload" cu
-        WHERE cu."orderId" = ${orderId}
-        ORDER BY cu."createdAt" DESC
-        LIMIT 1
-      `,
-      prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
-        SELECT row_to_json(a) AS "artifact"
-        FROM "Artifact" a
-        WHERE a."orderId" = ${orderId}
-        ORDER BY a."version" DESC, a."createdAt" DESC
-        LIMIT 10
-      `
+      withQueryFallback(
+        "getOrderByUploadToken uploads",
+        () =>
+          prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
+            SELECT row_to_json(cu) AS "upload"
+            FROM "CustomerUpload" cu
+            WHERE cu."orderId" = ${orderId}
+            ORDER BY cu."createdAt" DESC
+            LIMIT 1
+          `,
+        [] as Array<{ upload: Record<string, unknown> }>
+      ),
+      withQueryFallback(
+        "getOrderByUploadToken artifacts",
+        () =>
+          prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
+            SELECT row_to_json(a) AS "artifact"
+            FROM "Artifact" a
+            WHERE a."orderId" = ${orderId}
+            ORDER BY a."version" DESC, a."createdAt" DESC
+            LIMIT 10
+          `,
+        [] as Array<{ artifact: Record<string, unknown> }>
+      )
     ]);
 
     return {
@@ -1062,6 +1123,15 @@ function toDate(value: unknown) {
 
   const parsed = new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+async function withQueryFallback<T>(label: string, query: () => Promise<T>, fallback: T) {
+  try {
+    return await query();
+  } catch (error) {
+    console.error(`${label} failed`, error);
+    return fallback;
+  }
 }
 
 function shouldRunInlineJobs() {
