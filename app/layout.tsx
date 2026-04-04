@@ -13,8 +13,8 @@ const bodyFont = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "PawPrints Automation",
-  description: "Etsy order automation for custom digital pet portraits."
+  title: "PawprintsCA",
+  description: "Upload your photo for a PawprintsCA artist to work on your portrait."
 };
 
 export default function RootLayout({
