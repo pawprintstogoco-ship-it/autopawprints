@@ -12,8 +12,10 @@ function run(command: string, args: string[]) {
   }
 }
 
+const isHostedBuild = process.env.VERCEL === "1";
 const shouldGeneratePrisma = process.env.SKIP_PRISMA_GENERATE !== "true";
-const shouldPushSchema = process.env.SKIP_DB_PUSH !== "true";
+// Hosted builds should not attempt schema pushes through the pooled runtime URL.
+const shouldPushSchema = process.env.SKIP_DB_PUSH !== "true" && !isHostedBuild;
 
 if (shouldGeneratePrisma) {
   run("npx", ["prisma", "generate"]);
