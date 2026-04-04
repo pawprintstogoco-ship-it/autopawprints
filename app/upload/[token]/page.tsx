@@ -78,10 +78,7 @@ export default async function UploadPage({
             <div className="uploadHeroCopy">
               <div className="eyebrow">Portrait upload</div>
               <h1>Refining the portrait.</h1>
-              <p>
-                Share your favorite pet photo, confirm the name exactly as you want it
-                styled, and we&apos;ll take it from here.
-              </p>
+              <p>Upload your best photo, confirm the pet name, and we handle the rest.</p>
             </div>
 
             <div className="uploadStepper" aria-label="Order progress">
