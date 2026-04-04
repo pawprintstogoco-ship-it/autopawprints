@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { getAdminUploadGallery } from "@/lib/orders";
 import { OpsTopNav } from "@/app/orders/ops-top-nav";
+import { getPublicFileUrl } from "@/lib/storage";
 
 export default async function OrderFilesPage() {
   await requireAdminSession();
@@ -36,7 +37,7 @@ export default async function OrderFilesPage() {
               <article key={upload.id} className="card stack opsMediaCard">
                 <img
                   alt={`Upload for ${upload.petName}`}
-                  src={`/api/admin/uploads/${upload.id}/thumbnail`}
+                  src={getPublicFileUrl(upload.storageKey)}
                   loading="lazy"
                   className="opsMediaThumb"
                 />

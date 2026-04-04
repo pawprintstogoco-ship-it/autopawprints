@@ -2,6 +2,7 @@ import {
   ArtifactKind,
   DeliveryStatus,
   MessageChannel,
+  Prisma,
   OrderStatus,
   RenderJobStatus
 } from "@prisma/client";
@@ -233,72 +234,146 @@ export async function getEtsyConnectionStatus() {
 }
 
 export async function getDashboardOrders(status?: OrderStatus) {
-  const orders = await prisma.order.findMany({
-    where: status ? { status } : undefined,
-    include: {
-      uploads: {
-        orderBy: {
-          createdAt: "desc"
-        },
-        take: 1
-      },
-      artifacts: {
-        where: {
-          kind: ArtifactKind.PREVIEW
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        take: 1
-      }
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
+  try {
+    const statusFilter = status
+      ? Prisma.sql`AND o."status" = ${status}`
+      : Prisma.empty;
+    const orders = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        receiptId: string;
+        buyerName: string;
+        status: OrderStatus;
+        pilotListingEligible: boolean;
+        pilotListingMatched: boolean;
+        createdAt: Date;
+        photoReceivedAt: Date | null;
+        approvedAt: Date | null;
+        deliveredAt: Date | null;
+        latestUploadName: string | null;
+        latestPreviewKey: string | null;
+      }>
+    >`
+      SELECT
+        o."id",
+        o."receiptId",
+        o."buyerName",
+        o."status",
+        o."pilotListingEligible",
+        o."pilotListingMatched",
+        o."createdAt",
+        o."photoReceivedAt",
+        o."approvedAt",
+        o."deliveredAt",
+        (
+          SELECT cu."originalName"
+          FROM "CustomerUpload" cu
+          WHERE cu."orderId" = o."id"
+          ORDER BY cu."createdAt" DESC
+          LIMIT 1
+        ) AS "latestUploadName",
+        (
+          SELECT a."storageKey"
+          FROM "Artifact" a
+          WHERE a."orderId" = o."id" AND a."kind" = 'PREVIEW'
+          ORDER BY a."createdAt" DESC
+          LIMIT 1
+        ) AS "latestPreviewKey"
+      FROM "Order" o
+      WHERE 1=1
+      ${statusFilter}
+      ORDER BY o."createdAt" DESC
+    `;
 
-  return orders.map((order) => ({
-    id: order.id,
-    receiptId: order.receiptId,
-    buyerName: order.buyerName,
-    status: order.status,
-    pilotListingEligible: order.pilotListingEligible,
-    pilotListingMatched: order.pilotListingMatched,
-    createdAt: order.createdAt,
-    photoReceivedAt: order.photoReceivedAt,
-    approvedAt: order.approvedAt,
-    deliveredAt: order.deliveredAt,
-    uploadCount: order.uploads.length,
-    latestUploadName: order.uploads[0]?.originalName ?? null,
-    latestPreviewKey: order.artifacts[0]?.storageKey ?? null
-  }));
+    return orders.map((order) => ({
+      ...order,
+      uploadCount: order.latestUploadName ? 1 : 0
+    }));
+  } catch (error) {
+    console.error("getDashboardOrders failed", error);
+    return [];
+  }
 }
 
 export async function getAdminUploadGallery() {
-  return prisma.customerUpload.findMany({
-    include: {
-      order: true
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
+  try {
+    return await prisma.$queryRaw<
+      Array<{
+        id: string;
+        orderId: string;
+        petName: string;
+        originalName: string;
+        storageKey: string;
+        createdAt: Date;
+        order: {
+          buyerName: string;
+          status: OrderStatus;
+          receiptId: string;
+        };
+      }>
+    >`
+      SELECT
+        cu."id",
+        cu."orderId",
+        cu."petName",
+        cu."originalName",
+        cu."storageKey",
+        cu."createdAt",
+        json_build_object(
+          'buyerName', o."buyerName",
+          'status', o."status",
+          'receiptId', o."receiptId"
+        ) AS "order"
+      FROM "CustomerUpload" cu
+      INNER JOIN "Order" o ON o."id" = cu."orderId"
+      ORDER BY cu."createdAt" DESC
+      LIMIT 24
+    `;
+  } catch (error) {
+    console.error("getAdminUploadGallery failed", error);
+    return [];
+  }
 }
 
 export async function getAdminGeneratedGallery() {
-  return prisma.artifact.findMany({
-    where: {
-      kind: {
-        in: [ArtifactKind.PREVIEW, ArtifactKind.FINAL_PNG]
-      }
-    },
-    include: {
-      order: true
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
+  try {
+    return await prisma.$queryRaw<
+      Array<{
+        id: string;
+        orderId: string;
+        kind: ArtifactKind;
+        version: number;
+        storageKey: string;
+        createdAt: Date;
+        order: {
+          buyerName: string;
+          status: OrderStatus;
+          receiptId: string;
+        };
+      }>
+    >`
+      SELECT
+        a."id",
+        a."orderId",
+        a."kind",
+        a."version",
+        a."storageKey",
+        a."createdAt",
+        json_build_object(
+          'buyerName', o."buyerName",
+          'status', o."status",
+          'receiptId', o."receiptId"
+        ) AS "order"
+      FROM "Artifact" a
+      INNER JOIN "Order" o ON o."id" = a."orderId"
+      WHERE a."kind" IN ('PREVIEW', 'FINAL_PNG')
+      ORDER BY a."createdAt" DESC
+      LIMIT 24
+    `;
+  } catch (error) {
+    console.error("getAdminGeneratedGallery failed", error);
+    return [];
+  }
 }
 
 export async function deleteCustomerUploadById(uploadId: string) {
@@ -348,102 +423,160 @@ export async function deleteArtifactById(artifactId: string) {
 }
 
 export async function getOrderById(orderId: string) {
-  return prisma.order.findUnique({
-    where: {
-      id: orderId
-    },
-    include: {
-      items: true,
-      uploads: {
-        orderBy: {
-          createdAt: "desc"
-        }
-      },
-      artifacts: {
-        orderBy: {
-          createdAt: "desc"
-        }
-      },
-      renderJobs: {
-        orderBy: {
-          createdAt: "desc"
-        }
-      },
-      messageEvents: {
-        orderBy: {
-          createdAt: "desc"
-        }
-      },
-      deliveryEvents: {
-        orderBy: {
-          createdAt: "desc"
-        }
-      },
-      auditLog: {
-        orderBy: {
-          createdAt: "desc"
-        }
-      }
+  try {
+    const orders = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        receiptId: string;
+        buyerName: string;
+        buyerEmail: string | null;
+        status: OrderStatus;
+        uploadToken: string;
+      }>
+    >`
+      SELECT "id", "receiptId", "buyerName", "buyerEmail", "status", "uploadToken"
+      FROM "Order"
+      WHERE "id" = ${orderId}
+      LIMIT 1
+    `;
+
+    const order = orders[0];
+
+    if (!order) {
+      return null;
     }
-  });
+
+    const [uploads, artifacts, messageEvents, auditLog] = await Promise.all([
+      prisma.$queryRaw<
+        Array<{
+          id: string;
+          petName: string;
+          originalName: string;
+          blurScore: number | null;
+          createdAt: Date;
+        }>
+      >`
+        SELECT "id", "petName", "originalName", "blurScore", "createdAt"
+        FROM "CustomerUpload"
+        WHERE "orderId" = ${orderId}
+        ORDER BY "createdAt" DESC
+      `,
+      prisma.$queryRaw<
+        Array<{
+          id: string;
+          kind: ArtifactKind;
+          version: number;
+          storageKey: string;
+          createdAt: Date;
+        }>
+      >`
+        SELECT "id", "kind", "version", "storageKey", "createdAt"
+        FROM "Artifact"
+        WHERE "orderId" = ${orderId}
+        ORDER BY "createdAt" DESC
+      `,
+      prisma.$queryRaw<
+        Array<{
+          id: string;
+          eventType: string;
+          channel: MessageChannel;
+          body: string;
+          createdAt: Date;
+        }>
+      >`
+        SELECT "id", "eventType", "channel", "body", "createdAt"
+        FROM "MessageEvent"
+        WHERE "orderId" = ${orderId}
+        ORDER BY "createdAt" DESC
+      `,
+      prisma.$queryRaw<
+        Array<{
+          id: string;
+          action: string;
+          createdAt: Date;
+        }>
+      >`
+        SELECT "id", "action", "createdAt"
+        FROM "AuditLog"
+        WHERE "orderId" = ${orderId}
+        ORDER BY "createdAt" DESC
+      `
+    ]);
+
+    return {
+      ...order,
+      uploads,
+      artifacts,
+      messageEvents,
+      auditLog
+    };
+  } catch (error) {
+    console.error("getOrderById failed", error);
+    return null;
+  }
 }
 
 export async function getOrderByUploadToken(token: string) {
-  const orders = await prisma.$queryRaw<
-    Array<{
-      id: string;
-      buyerName: string;
-      receiptId: string;
-      status: OrderStatus;
-    }>
-  >`
-    SELECT "id", "buyerName", "receiptId", "status"
-    FROM "Order"
-    WHERE "uploadToken" = ${token}
-      AND "uploadTokenExpiresAt" > NOW()
-    LIMIT 1
-  `;
+  try {
+    const orders = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        buyerName: string;
+        receiptId: string;
+        status: OrderStatus;
+      }>
+    >`
+      SELECT "id", "buyerName", "receiptId", "status"
+      FROM "Order"
+      WHERE "uploadToken" = ${token}
+        AND "uploadTokenExpiresAt" > NOW()
+      LIMIT 1
+    `;
 
-  const order = orders[0];
+    const order = orders[0];
 
-  if (!order) {
+    if (!order) {
+      return null;
+    }
+
+    const uploads = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        petName: string;
+        createdAt: Date;
+      }>
+    >`
+      SELECT "id", "petName", "createdAt"
+      FROM "CustomerUpload"
+      WHERE "orderId" = ${order.id}
+      ORDER BY "createdAt" DESC
+      LIMIT 1
+    `;
+
+    const finalArtifacts = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        storageKey: string;
+        createdAt: Date;
+      }>
+    >`
+      SELECT "id", "storageKey", "createdAt"
+      FROM "Artifact"
+      WHERE "orderId" = ${order.id}
+        AND "kind" = 'FINAL_PNG'
+      ORDER BY "version" DESC, "createdAt" DESC
+      LIMIT 1
+    `;
+
+    return {
+      ...order,
+      uploads,
+      finalArtifacts
+    };
+  } catch (error) {
+    console.error("getOrderByUploadToken failed", error);
     return null;
   }
-
-  const uploads = await prisma.$queryRaw<
-    Array<{
-      id: string;
-      petName: string;
-      createdAt: Date;
-    }>
-  >`
-    SELECT "id", "petName", "createdAt"
-    FROM "CustomerUpload"
-    WHERE "orderId" = ${order.id}
-    ORDER BY "createdAt" DESC
-    LIMIT 1
-  `;
-
-  const finalArtifacts = await prisma.$queryRaw<
-    Array<{
-      id: string;
-      storageKey: string;
-      createdAt: Date;
-    }>
-  >`
-    SELECT "id", "storageKey", "createdAt"
-    FROM "Artifact"
-    WHERE "orderId" = ${order.id}
-      AND "kind" = 'FINAL_PNG'
-    ORDER BY "version" DESC, "createdAt" DESC
-    LIMIT 1
-  `;
-
-  return {
-    ...order,
-    uploads,
-    finalArtifacts
-  };
 }
 
 export async function getOrderByDownloadToken(token: string) {
