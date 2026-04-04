@@ -99,7 +99,14 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
     .normalise()
     .png()
     .toBuffer();
-  const portraitMetadata = await sharp(portrait).metadata();
+  const alignedPortrait = await sharp(portrait)
+    .trim({
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      threshold: 3
+    })
+    .png()
+    .toBuffer();
+  const portraitMetadata = await sharp(alignedPortrait).metadata();
   const portraitWidth = portraitMetadata.width ?? artWidth;
   const portraitHeight = portraitMetadata.height ?? artHeight;
   const portraitLeft = artLeft + Math.round((artWidth - portraitWidth) / 2);
@@ -136,7 +143,7 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   })
     .composite([
       { input: posterBackground },
-      { input: portrait, left: portraitLeft, top: portraitTop },
+      { input: alignedPortrait, left: portraitLeft, top: portraitTop },
       { input: titleSafeBand },
       {
         input: firstLineOverlay.buffer,
