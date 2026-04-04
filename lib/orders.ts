@@ -234,74 +234,62 @@ export async function getEtsyConnectionStatus() {
 
 export async function getDashboardOrders(status?: OrderStatus) {
   try {
-    const orders = await prisma.order.findMany({
-      where: status ? { status } : undefined,
-      orderBy: {
-        createdAt: "desc"
-      },
-      select: {
-        id: true,
-        receiptId: true,
-        buyerName: true,
-        status: true,
-        pilotListingEligible: true,
-        pilotListingMatched: true,
-        createdAt: true,
-        photoReceivedAt: true,
-        approvedAt: true,
-        deliveredAt: true
-      }
-    });
+    const orderRows = await prisma.$queryRaw<
+      Array<{ order: Record<string, unknown> }>
+    >`
+      SELECT row_to_json(o) AS "order"
+      FROM "Order" o
+      ORDER BY o."createdAt" DESC
+      LIMIT 200
+    `;
 
-    const orderIds = orders.map((order) => order.id);
+    const orders = orderRows
+      .map(({ order }) => ({
+        id: String(order.id),
+        receiptId: String(order.receiptId ?? ""),
+        buyerName: String(order.buyerName ?? ""),
+        status: String(order.status ?? OrderStatus.PAID) as OrderStatus,
+        pilotListingEligible: Boolean(order.pilotListingEligible),
+        pilotListingMatched: Boolean(order.pilotListingMatched),
+        createdAt: toDate(order.createdAt) ?? new Date(0),
+        photoReceivedAt: toDate(order.photoReceivedAt),
+        approvedAt: toDate(order.approvedAt),
+        deliveredAt: toDate(order.deliveredAt)
+      }))
+      .filter((order) => !status || order.status === status);
 
-    const [uploads, previews] = await Promise.all([
-      orderIds.length === 0
-        ? Promise.resolve([])
-        : prisma.customerUpload.findMany({
-            where: {
-              orderId: {
-                in: orderIds
-              }
-            },
-            orderBy: {
-              createdAt: "desc"
-            },
-            select: {
-              orderId: true,
-              originalName: true
-            }
-          }),
-      orderIds.length === 0
-        ? Promise.resolve([])
-        : prisma.artifact.findMany({
-            where: {
-              orderId: {
-                in: orderIds
-              },
-              kind: ArtifactKind.PREVIEW
-            },
-            orderBy: {
-              createdAt: "desc"
-            },
-            select: {
-              orderId: true,
-              storageKey: true
-            }
-          })
+    const [uploadRows, artifactRows] = await Promise.all([
+      prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
+        SELECT row_to_json(cu) AS "upload"
+        FROM "CustomerUpload" cu
+        ORDER BY cu."createdAt" DESC
+        LIMIT 500
+      `,
+      prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
+        SELECT row_to_json(a) AS "artifact"
+        FROM "Artifact" a
+        ORDER BY a."createdAt" DESC
+        LIMIT 500
+      `
     ]);
 
     const latestUploadByOrder = new Map<string, string>();
-    for (const upload of uploads) {
-      if (!latestUploadByOrder.has(upload.orderId)) {
-        latestUploadByOrder.set(upload.orderId, upload.originalName);
+    for (const { upload } of uploadRows) {
+      const orderId = String(upload.orderId ?? "");
+      if (orderId && !latestUploadByOrder.has(orderId)) {
+        latestUploadByOrder.set(orderId, String(upload.originalName ?? ""));
       }
     }
 
     const latestPreviewByOrder = new Map<string, string>();
-    for (const preview of previews) {
-      if (!latestPreviewByOrder.has(preview.orderId)) {
-        latestPreviewByOrder.set(preview.orderId, preview.storageKey);
+    for (const { artifact } of artifactRows) {
+      if (String(artifact.kind ?? "") !== "PREVIEW") {
+        continue;
+      }
+
+      const orderId = String(artifact.orderId ?? "");
+      if (orderId && !latestPreviewByOrder.has(orderId)) {
+        latestPreviewByOrder.set(orderId, String(artifact.storageKey ?? ""));
       }
     }
 
@@ -319,51 +307,48 @@ export async function getDashboardOrders(status?: OrderStatus) {
 
 export async function getAdminUploadGallery() {
   try {
-    const uploads = await prisma.customerUpload.findMany({
-      orderBy: {
-        createdAt: "desc"
-      },
-      take: 24,
-      select: {
-        id: true,
-        orderId: true,
-        petName: true,
-        originalName: true,
-        storageKey: true,
-        createdAt: true
-      }
-    });
+    const [uploadRows, orderRows] = await Promise.all([
+      prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
+        SELECT row_to_json(cu) AS "upload"
+        FROM "CustomerUpload" cu
+        ORDER BY cu."createdAt" DESC
+        LIMIT 24
+      `,
+      prisma.$queryRaw<Array<{ order: Record<string, unknown> }>>`
+        SELECT row_to_json(o) AS "order"
+        FROM "Order" o
+        ORDER BY o."createdAt" DESC
+        LIMIT 200
+      `
+    ]);
 
-    const orders = await prisma.order.findMany({
-      where: {
-        id: {
-          in: uploads.map((upload) => upload.orderId)
+    const orderMap = new Map(
+      orderRows.map(({ order }) => [
+        String(order.id),
+        {
+          buyerName: String(order.buyerName ?? ""),
+          status: String(order.status ?? OrderStatus.PAID) as OrderStatus,
+          receiptId: String(order.receiptId ?? "")
         }
-      },
-      select: {
-        id: true,
-        buyerName: true,
-        status: true,
-        receiptId: true
-      }
-    });
+      ])
+    );
 
-    const orderMap = new Map(orders.map((order) => [order.id, order]));
-
-    return uploads
-      .map((upload) => {
-        const order = orderMap.get(upload.orderId);
+    return uploadRows
+      .map(({ upload }) => {
+        const orderId = String(upload.orderId ?? "");
+        const order = orderMap.get(orderId);
         if (!order) {
           return null;
         }
 
         return {
-          ...upload,
-          order: {
-            buyerName: order.buyerName,
-            status: order.status,
-            receiptId: order.receiptId
-          }
+          id: String(upload.id),
+          orderId,
+          petName: String(upload.petName ?? ""),
+          originalName: String(upload.originalName ?? ""),
+          storageKey: String(upload.storageKey ?? ""),
+          createdAt: toDate(upload.createdAt) ?? new Date(0),
+          order
         };
       })
       .filter((upload) => upload !== null);
@@ -375,56 +360,53 @@ export async function getAdminUploadGallery() {
 
 export async function getAdminGeneratedGallery() {
   try {
-    const artifacts = await prisma.artifact.findMany({
-      where: {
-        kind: {
-          in: [ArtifactKind.PREVIEW, ArtifactKind.FINAL_PNG]
+    const [artifactRows, orderRows] = await Promise.all([
+      prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
+        SELECT row_to_json(a) AS "artifact"
+        FROM "Artifact" a
+        ORDER BY a."createdAt" DESC
+        LIMIT 24
+      `,
+      prisma.$queryRaw<Array<{ order: Record<string, unknown> }>>`
+        SELECT row_to_json(o) AS "order"
+        FROM "Order" o
+        ORDER BY o."createdAt" DESC
+        LIMIT 200
+      `
+    ]);
+
+    const orderMap = new Map(
+      orderRows.map(({ order }) => [
+        String(order.id),
+        {
+          buyerName: String(order.buyerName ?? ""),
+          status: String(order.status ?? OrderStatus.PAID) as OrderStatus,
+          receiptId: String(order.receiptId ?? "")
         }
-      },
-      orderBy: {
-        createdAt: "desc"
-      },
-      take: 24,
-      select: {
-        id: true,
-        orderId: true,
-        kind: true,
-        version: true,
-        storageKey: true,
-        createdAt: true
-      }
-    });
+      ])
+    );
 
-    const orders = await prisma.order.findMany({
-      where: {
-        id: {
-          in: artifacts.map((artifact) => artifact.orderId)
+    return artifactRows
+      .map(({ artifact }) => {
+        const kind = String(artifact.kind ?? "");
+        if (kind !== "PREVIEW" && kind !== "FINAL_PNG") {
+          return null;
         }
-      },
-      select: {
-        id: true,
-        buyerName: true,
-        status: true,
-        receiptId: true
-      }
-    });
 
-    const orderMap = new Map(orders.map((order) => [order.id, order]));
-
-    return artifacts
-      .map((artifact) => {
-        const order = orderMap.get(artifact.orderId);
+        const orderId = String(artifact.orderId ?? "");
+        const order = orderMap.get(orderId);
         if (!order) {
           return null;
         }
 
         return {
-          ...artifact,
-          order: {
-            buyerName: order.buyerName,
-            status: order.status,
-            receiptId: order.receiptId
-          }
+          id: String(artifact.id),
+          orderId,
+          kind: kind as ArtifactKind,
+          version: Number(artifact.version ?? 1),
+          storageKey: String(artifact.storageKey ?? ""),
+          createdAt: toDate(artifact.createdAt) ?? new Date(0),
+          order
         };
       })
       .filter((artifact) => artifact !== null);
@@ -482,91 +464,84 @@ export async function deleteArtifactById(artifactId: string) {
 
 export async function getOrderById(orderId: string) {
   try {
-    const order = await prisma.order.findUnique({
-      where: {
-        id: orderId
-      },
-      select: {
-        id: true,
-        receiptId: true,
-        buyerName: true,
-        buyerEmail: true,
-        status: true,
-        uploadToken: true
-      }
-    });
+    const orderRows = await prisma.$queryRaw<
+      Array<{ order: Record<string, unknown> }>
+    >`
+      SELECT row_to_json(o) AS "order"
+      FROM "Order" o
+      WHERE o."id" = ${orderId}
+      LIMIT 1
+    `;
 
-    if (!order) {
+    const rawOrder = orderRows[0]?.order;
+
+    if (!rawOrder) {
       return null;
     }
 
     const [uploads, artifacts, messageEvents, auditLog] = await Promise.all([
-      prisma.customerUpload.findMany({
-        where: {
-          orderId
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        select: {
-          id: true,
-          petName: true,
-          originalName: true,
-          blurScore: true,
-          createdAt: true
-        }
-      }),
-      prisma.artifact.findMany({
-        where: {
-          orderId
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        select: {
-          id: true,
-          kind: true,
-          version: true,
-          storageKey: true,
-          createdAt: true
-        }
-      }),
-      prisma.messageEvent.findMany({
-        where: {
-          orderId
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        select: {
-          id: true,
-          eventType: true,
-          channel: true,
-          body: true,
-          createdAt: true
-        }
-      }),
-      prisma.auditLog.findMany({
-        where: {
-          orderId
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        select: {
-          id: true,
-          action: true,
-          createdAt: true
-        }
-      })
+      prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
+        SELECT row_to_json(cu) AS "upload"
+        FROM "CustomerUpload" cu
+        WHERE cu."orderId" = ${orderId}
+        ORDER BY cu."createdAt" DESC
+      `,
+      prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
+        SELECT row_to_json(a) AS "artifact"
+        FROM "Artifact" a
+        WHERE a."orderId" = ${orderId}
+        ORDER BY a."createdAt" DESC
+      `,
+      prisma.$queryRaw<Array<{ event: Record<string, unknown> }>>`
+        SELECT row_to_json(me) AS "event"
+        FROM "MessageEvent" me
+        WHERE me."orderId" = ${orderId}
+        ORDER BY me."createdAt" DESC
+      `,
+      prisma.$queryRaw<Array<{ audit: Record<string, unknown> }>>`
+        SELECT row_to_json(al) AS "audit"
+        FROM "AuditLog" al
+        WHERE al."orderId" = ${orderId}
+        ORDER BY al."createdAt" DESC
+      `
     ]);
 
     return {
-      ...order,
-      uploads,
-      artifacts,
-      messageEvents,
-      auditLog
+      id: String(rawOrder.id),
+      receiptId: String(rawOrder.receiptId ?? ""),
+      buyerName: String(rawOrder.buyerName ?? ""),
+      buyerEmail: rawOrder.buyerEmail ? String(rawOrder.buyerEmail) : null,
+      status: String(rawOrder.status ?? OrderStatus.PAID) as OrderStatus,
+      uploadToken: String(rawOrder.uploadToken ?? ""),
+      uploads: uploads.map(({ upload }) => ({
+        id: String(upload.id),
+        petName: String(upload.petName ?? ""),
+        originalName: String(upload.originalName ?? ""),
+        blurScore:
+          upload.blurScore === null || upload.blurScore === undefined
+            ? null
+            : Number(upload.blurScore),
+        createdAt: toDate(upload.createdAt) ?? new Date(0)
+      })),
+      artifacts: artifacts.map(({ artifact }) => ({
+        id: String(artifact.id),
+        kind: String(artifact.kind ?? ArtifactKind.PREVIEW) as ArtifactKind,
+        version: Number(artifact.version ?? 1),
+        storageKey: String(artifact.storageKey ?? ""),
+        createdAt: toDate(artifact.createdAt) ?? new Date(0)
+      })),
+      messageEvents: messageEvents.map(({ event }) => ({
+        id: String(event.id),
+        eventType: String(event.eventType ?? ""),
+        channel: String(event.channel ?? MessageChannel.INTERNAL) as MessageChannel,
+        body: String(event.body ?? ""),
+        createdAt: toDate(event.createdAt) ?? new Date(0)
+      })),
+      auditLog: auditLog.map(({ audit }) => ({
+        id: String(audit.id),
+        action: String(audit.action ?? ""),
+        createdAt: toDate(audit.createdAt) ?? new Date(0)
+      }))
     };
   } catch (error) {
     console.error("getOrderById failed", error);
@@ -576,65 +551,60 @@ export async function getOrderById(orderId: string) {
 
 export async function getOrderByUploadToken(token: string) {
   try {
-    const order = await prisma.order.findFirst({
-      where: {
-        uploadToken: token,
-        uploadTokenExpiresAt: {
-          gt: new Date()
-        }
-      },
-      select: {
-        id: true,
-        buyerName: true,
-        receiptId: true,
-        status: true
-      }
-    });
+    const orderRows = await prisma.$queryRaw<
+      Array<{ order: Record<string, unknown> }>
+    >`
+      SELECT row_to_json(o) AS "order"
+      FROM "Order" o
+      WHERE o."uploadToken" = ${token}
+        AND o."uploadTokenExpiresAt" > NOW()
+      LIMIT 1
+    `;
 
-    if (!order) {
+    const rawOrder = orderRows[0]?.order;
+
+    if (!rawOrder) {
       return null;
     }
 
-    const [uploads, finalArtifact] = await Promise.all([
-      prisma.customerUpload.findMany({
-        where: {
-          orderId: order.id
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        take: 1,
-        select: {
-          id: true,
-          petName: true,
-          createdAt: true
-        }
-      }),
-      prisma.artifact.findFirst({
-        where: {
-          orderId: order.id,
-          kind: ArtifactKind.FINAL_PNG
-        },
-        orderBy: [
-          {
-            version: "desc"
-          },
-          {
-            createdAt: "desc"
-          }
-        ],
-        select: {
-          id: true,
-          storageKey: true,
-          createdAt: true
-        }
-      })
+    const orderId = String(rawOrder.id);
+
+    const [uploads, finalArtifacts] = await Promise.all([
+      prisma.$queryRaw<Array<{ upload: Record<string, unknown> }>>`
+        SELECT row_to_json(cu) AS "upload"
+        FROM "CustomerUpload" cu
+        WHERE cu."orderId" = ${orderId}
+        ORDER BY cu."createdAt" DESC
+        LIMIT 1
+      `,
+      prisma.$queryRaw<Array<{ artifact: Record<string, unknown> }>>`
+        SELECT row_to_json(a) AS "artifact"
+        FROM "Artifact" a
+        WHERE a."orderId" = ${orderId}
+        ORDER BY a."version" DESC, a."createdAt" DESC
+        LIMIT 10
+      `
     ]);
 
     return {
-      ...order,
-      uploads,
-      finalArtifacts: finalArtifact ? [finalArtifact] : []
+      id: orderId,
+      buyerName: String(rawOrder.buyerName ?? ""),
+      receiptId: String(rawOrder.receiptId ?? ""),
+      status: String(rawOrder.status ?? OrderStatus.PAID) as OrderStatus,
+      uploads: uploads.map(({ upload }) => ({
+        id: String(upload.id),
+        petName: String(upload.petName ?? ""),
+        createdAt: toDate(upload.createdAt) ?? new Date(0)
+      })),
+      finalArtifacts: finalArtifacts
+        .map(({ artifact }) => artifact)
+        .filter((artifact) => String(artifact.kind ?? "") === "FINAL_PNG")
+        .slice(0, 1)
+        .map((artifact) => ({
+          id: String(artifact.id),
+          storageKey: String(artifact.storageKey ?? ""),
+          createdAt: toDate(artifact.createdAt) ?? new Date(0)
+        }))
     };
   } catch (error) {
     console.error("getOrderByUploadToken failed", error);
@@ -1079,6 +1049,19 @@ export async function recordDeliveryOpen(orderId: string) {
 
 function sanitizeFileName(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+}
+
+function toDate(value: unknown) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function shouldRunInlineJobs() {

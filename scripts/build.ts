@@ -12,9 +12,8 @@ function run(command: string, args: string[]) {
   }
 }
 
-const isHostedBuild = process.env.VERCEL === "1";
 const shouldGeneratePrisma = process.env.SKIP_PRISMA_GENERATE !== "true";
-const shouldPushSchema = process.env.SKIP_DB_PUSH !== "true" && !isHostedBuild;
+const shouldPushSchema = process.env.SKIP_DB_PUSH !== "true";
 
 if (shouldGeneratePrisma) {
   run("npx", ["prisma", "generate"]);
