@@ -17,6 +17,7 @@
     "@prisma/client": "^6.6.0",
     "bullmq": "^5.46.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
     "ioredis": "^5.4.1",
     "next": "^15.2.4",
     "pdf-lib": "^1.17.1",

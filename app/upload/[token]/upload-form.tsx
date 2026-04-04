@@ -1,13 +1,21 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChangeEvent, FormEvent, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function UploadForm({ token }: { token: string }) {
   const router = useRouter();
+  const photoInputId = useId();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedFileName, setSelectedFileName] = useState("");
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setSelectedFileName(file?.name ?? "");
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,49 +73,143 @@ export function UploadForm({ token }: { token: string }) {
   }
 
   return (
-    <form className="stack" onSubmit={handleSubmit}>
-      <div className="muted">
+    <motion.form
+      className="uploadForm"
+      onSubmit={handleSubmit}
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      <AnimatedBlock delay={0.02} className="uploadFormNote">
         Re-uploading a new photo will replace the current source image for the next render.
-      </div>
-      <label className="field">
-        <span>Pet name</span>
-        <input type="text" name="petName" required />
-      </label>
-      <label className="field">
-        <span>Photo</span>
-        <input type="file" name="photo" accept="image/*" required />
-      </label>
-      <label className="field">
-        <span>Notes</span>
+      </AnimatedBlock>
+
+      <AnimatedBlock as="label" delay={0.08} className="uploadField">
+        <span className="uploadFieldLabel">Pet name</span>
+        <input
+          className="uploadTextInput"
+          type="text"
+          name="petName"
+          placeholder="Enter pet name"
+          required
+        />
+      </AnimatedBlock>
+
+      <AnimatedBlock delay={0.14} className="uploadField">
+        <span className="uploadFieldLabel">New photo</span>
+        <input
+          id={photoInputId}
+          className="uploadHiddenInput"
+          type="file"
+          name="photo"
+          accept="image/*"
+          required
+          onChange={handleFileChange}
+        />
+        <label htmlFor={photoInputId} className="uploadDropzone">
+          <span className="uploadDropzoneIcon" aria-hidden="true">
+            +
+          </span>
+          <span className="uploadDropzoneTitle">{selectedFileName || "Tap to upload"}</span>
+          <span className="uploadDropzoneHint">
+            JPG, PNG, or HEIC. Choose the clearest photo you have.
+          </span>
+        </label>
+      </AnimatedBlock>
+
+      <AnimatedBlock as="label" delay={0.2} className="uploadField">
+        <span className="uploadFieldLabel">Notes for artist</span>
         <textarea
+          className="uploadTextarea"
           name="notes"
           rows={5}
-          placeholder="Anything we should know about the portrait?"
+          placeholder="Any specific details we should focus on?"
         />
-      </label>
-      {isSubmitting ? (
-        <div className="stack" aria-live="polite">
-          <div className="progressBar" aria-hidden="true">
-            <div className="progressBarFill" style={{ width: `${uploadProgress}%` }} />
-          </div>
-          <div className="muted progressLabel">Uploading photo... {uploadProgress}%</div>
-        </div>
-      ) : null}
-      {errorMessage ? (
-        <div className="errorBanner" role="alert">
-          {errorMessage}
-        </div>
-      ) : null}
-      <button className="button" type="submit" disabled={isSubmitting}>
+      </AnimatedBlock>
+
+      <AnimatePresence initial={false}>
         {isSubmitting ? (
-          <span className="buttonContent">
-            <span className="spinner" aria-hidden="true" />
-            Uploading photo...
-          </span>
-        ) : (
-          "Submit photo"
-        )}
-      </button>
-    </form>
+          <motion.div
+            key="progress"
+            className="uploadProgressCard"
+            aria-live="polite"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <div className="progressBar" aria-hidden="true">
+              <motion.div
+                className="progressBarFill"
+                animate={{ width: `${uploadProgress}%` }}
+                transition={{ ease: "easeOut", duration: 0.2 }}
+              />
+            </div>
+            <div className="progressLabel">Uploading photo... {uploadProgress}%</div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence initial={false}>
+        {errorMessage ? (
+          <motion.div
+            key="error"
+            className="errorBanner"
+            role="alert"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            {errorMessage}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatedBlock delay={0.26}>
+        <motion.button
+          className="uploadSubmitButton"
+          type="submit"
+          disabled={isSubmitting}
+          whileHover={isSubmitting ? undefined : { y: -2, scale: 1.01 }}
+          whileTap={isSubmitting ? undefined : { scale: 0.99 }}
+        >
+          {isSubmitting ? (
+            <span className="buttonContent">
+              <span className="spinner" aria-hidden="true" />
+              Uploading photo...
+            </span>
+          ) : (
+            <span className="buttonContent">
+              Submit photo
+              <span aria-hidden="true">-&gt;</span>
+            </span>
+          )}
+        </motion.button>
+      </AnimatedBlock>
+    </motion.form>
+  );
+}
+
+function AnimatedBlock({
+  as,
+  children,
+  className,
+  delay = 0
+}: {
+  as?: "div" | "label";
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const Component = as === "label" ? motion.label : motion.div;
+
+  return (
+    <Component
+      className={className}
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay, ease: "easeOut" }}
+    >
+      {children}
+    </Component>
   );
 }
