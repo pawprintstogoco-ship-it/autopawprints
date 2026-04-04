@@ -389,30 +389,44 @@ export async function getOrderById(orderId: string) {
 }
 
 export async function getOrderByUploadToken(token: string) {
-  return prisma.order.findFirst({
-    where: {
-      uploadToken: token,
-      uploadTokenExpiresAt: {
-        gt: new Date()
-      }
-    },
-    select: {
-      id: true,
-      buyerName: true,
-      status: true,
-      downloadToken: true,
-      uploads: {
-        select: {
-          id: true,
-          petName: true
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        take: 1
-      }
-    }
-  });
+  const orders = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      buyerName: string;
+      status: OrderStatus;
+      downloadToken: string | null;
+    }>
+  >`
+    SELECT "id", "buyerName", "status", "downloadToken"
+    FROM "Order"
+    WHERE "uploadToken" = ${token}
+      AND "uploadTokenExpiresAt" > NOW()
+    LIMIT 1
+  `;
+
+  const order = orders[0];
+
+  if (!order) {
+    return null;
+  }
+
+  const uploads = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      petName: string;
+    }>
+  >`
+    SELECT "id", "petName"
+    FROM "CustomerUpload"
+    WHERE "orderId" = ${order.id}
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  `;
+
+  return {
+    ...order,
+    uploads
+  };
 }
 
 export async function getOrderByDownloadToken(token: string) {
