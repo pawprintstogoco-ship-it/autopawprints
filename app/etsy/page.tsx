@@ -49,7 +49,7 @@ export default async function EtsySetupPage() {
             </form>
             <form action="/api/dev/seed-demo" method="post">
               <button className="buttonSecondary" type="submit">
-                Seed demo order
+                Seed 6 demo orders
               </button>
             </form>
             <Link href="/orders" className="buttonSecondary">
