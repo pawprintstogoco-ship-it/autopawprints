@@ -13,6 +13,7 @@ const bodyFont = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://pawprints.ca"),
   title: "PawprintsCA",
   description: "Upload your photo for a PawprintsCA artist to work on your portrait."
 };

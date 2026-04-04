@@ -19,9 +19,6 @@ export default function NotFound() {
           <Link href="/" className="button">
             Go to home
           </Link>
-          <Link href="/orders" className="buttonSecondary">
-            Internal dashboard
-          </Link>
         </div>
       </section>
     </main>
