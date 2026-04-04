@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { getAdminGeneratedGallery } from "@/lib/orders";
 import { OpsTopNav } from "@/app/orders/ops-top-nav";
-import { getPublicFileUrl } from "@/lib/storage";
 
 export default async function GeneratedFilesPage() {
   await requireAdminSession();
@@ -34,16 +33,18 @@ export default async function GeneratedFilesPage() {
         <div className="cards opsGallery">
           {artifacts.map((artifact) => (
             <article key={artifact.id} className="card stack opsMediaCard">
-              <img
-                alt={`${artifact.kind} for ${artifact.order.buyerName}`}
-                src={getPublicFileUrl(artifact.storageKey)}
-                loading="lazy"
-                className="opsMediaThumb"
-              />
               <strong>{artifact.kind.replaceAll("_", " ")}</strong>
               <span className="muted">Buyer: {artifact.order.buyerName}</span>
               <span className="muted">Status: {artifact.order.status.replaceAll("_", " ")}</span>
               <span className="mono">Order ID: {artifact.orderId}</span>
+              <a
+                href={`/api/files/${artifact.storageKey.split("/").map(encodeURIComponent).join("/")}`}
+                className="buttonSecondary"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open generated file
+              </a>
               <Link href={`/orders/${artifact.orderId}`} className="buttonSecondary">
                 Open order {artifact.order.receiptId}
               </Link>

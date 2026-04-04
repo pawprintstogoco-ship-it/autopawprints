@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { getAdminUploadGallery } from "@/lib/orders";
 import { OpsTopNav } from "@/app/orders/ops-top-nav";
-import { getPublicFileUrl } from "@/lib/storage";
 
 export default async function OrderFilesPage() {
   await requireAdminSession();
@@ -35,17 +34,19 @@ export default async function OrderFilesPage() {
           <div className="cards opsGallery">
             {uploads.map((upload) => (
               <article key={upload.id} className="card stack opsMediaCard">
-                <img
-                  alt={`Upload for ${upload.petName}`}
-                  src={getPublicFileUrl(upload.storageKey)}
-                  loading="lazy"
-                  className="opsMediaThumb"
-                />
                 <strong>{upload.petName}</strong>
                 <span className="muted">{upload.originalName}</span>
                 <span className="muted">Buyer: {upload.order.buyerName}</span>
                 <span className="muted">Status: {upload.order.status.replaceAll("_", " ")}</span>
                 <span className="mono">Order ID: {upload.orderId}</span>
+                <a
+                  href={`/api/files/${upload.storageKey.split("/").map(encodeURIComponent).join("/")}`}
+                  className="buttonSecondary"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open upload file
+                </a>
                 <Link href={`/orders/${upload.orderId}`} className="buttonSecondary">
                   Open order {upload.order.receiptId}
                 </Link>
