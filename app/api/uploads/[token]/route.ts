@@ -6,7 +6,17 @@ export async function POST(
   context: { params: Promise<{ token: string }> }
 ) {
   const { token } = await context.params;
-  const order = await getOrderByUploadToken(token);
+  let order;
+
+  try {
+    order = await getOrderByUploadToken(token);
+  } catch (error) {
+    console.error("Upload token lookup failed", error);
+    return NextResponse.json(
+      { error: "Upload service is temporarily unavailable. Please try again." },
+      { status: 503 }
+    );
+  }
 
   if (!order) {
     return NextResponse.json({ error: "Upload link is invalid or expired" }, { status: 404 });

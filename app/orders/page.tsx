@@ -14,7 +14,16 @@ export default async function OrdersPage({
   await requireAdminSession();
   const params = (await searchParams) ?? {};
   const selectedStatus = statusOptions.find((option) => option === params.status);
-  const orders = await getDashboardOrders(selectedStatus);
+  let orders = [] as Awaited<ReturnType<typeof getDashboardOrders>>;
+  let loadError: string | null = null;
+
+  try {
+    orders = await getDashboardOrders(selectedStatus);
+  } catch (error) {
+    console.error("OrdersPage failed to load dashboard orders", error);
+    loadError = "Orders are temporarily unavailable. Please try again in a moment.";
+  }
+
   const awaitingPhotoCount = orders.filter((order) => order.status === OrderStatus.AWAITING_PHOTO).length;
   const manualCount = orders.filter((order) => !order.pilotListingEligible).length;
 
@@ -76,6 +85,12 @@ export default async function OrdersPage({
             );
           })}
         </div>
+
+        {loadError ? (
+          <div className="errorBanner" role="alert">
+            {loadError}
+          </div>
+        ) : null}
 
         <div className="opsTableWrap">
           <table className="table">

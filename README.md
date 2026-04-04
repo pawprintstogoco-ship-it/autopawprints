@@ -30,6 +30,7 @@ STORAGE_ROOT=./storage
 DELIVERY_LINK_TTL_HOURS=168
 OPENAI_API_KEY=...
 OPENAI_IMAGE_MODEL=gpt-image-1
+INLINE_RENDER_JOBS=false
 ETSY_CLIENT_ID=...
 ETSY_CLIENT_SECRET=
 ETSY_REDIRECT_URI=https://your-domain.com/api/etsy/oauth/callback
@@ -70,8 +71,9 @@ npm run seed:demo
 - Storage is persisted in the database for the hosted demo flow, avoiding Vercel filesystem write errors.
 - Delivery stays on the same tokenized customer page in v1. Buyers upload, wait in review state, then save the final portrait from that same link after approval.
 - If `OPENAI_API_KEY` is set, uploaded pet photos are transformed into a stylized portrait with OpenAI before the app adds the buyer-facing layout and export formats. Without that key, the app falls back to the simpler local stylizer.
+- `INLINE_RENDER_JOBS=false` keeps uploads fast by queueing render work instead of running it inside the upload request. Only enable inline mode for local debugging or tightly controlled demos.
 - Approval marks the order delivered and logs a manual Etsy messaging reminder with a prebuilt delivery message.
 - Etsy OAuth uses the documented PKCE flow and stores the seller token pair in the database.
 - The webhook route expects Etsy-style `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers and fetches the receipt resource from Etsy before creating the order.
 - The pilot is intentionally limited to `ETSY_PILOT_LISTING_ID`; non-pilot receipts are captured and flagged for manual handling.
-- On Vercel, render and delivery jobs run inline for the demo flow so uploads can complete without a separate worker deployment.
+- Queue-backed render and delivery jobs are the recommended production path. If you deploy on Vercel, make sure the worker process is running against the same Redis and database.
