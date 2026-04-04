@@ -6,7 +6,16 @@ import { getPublicFileUrl } from "@/lib/storage";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "PawprintsCA Upload"
+  title: "PawprintsCA Upload",
+  description: "Upload your photo for a PawprintsCA artist to work on your portrait.",
+  openGraph: {
+    title: "PawprintsCA Upload",
+    description: "Upload your photo for a PawprintsCA artist to work on your portrait."
+  },
+  twitter: {
+    title: "PawprintsCA Upload",
+    description: "Upload your photo for a PawprintsCA artist to work on your portrait."
+  }
 };
 
 export default async function UploadPage({
@@ -63,7 +72,7 @@ export default async function UploadPage({
           <div className="uploadHero">
             <div className="uploadHeroCopy">
               <h1>PawprintsCA Upload</h1>
-              <p>Submit one clear image and the exact pet name for your portrait.</p>
+              <p>Upload your photo for a PawprintsCA artist to work on your portrait.</p>
             </div>
           </div>
 
