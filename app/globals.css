@@ -334,6 +334,7 @@ select {
   gap: 22px;
   margin-bottom: 28px;
   max-width: 1240px;
+  margin-inline: auto;
 }
 
 .uploadKickerRow {
@@ -444,6 +445,14 @@ select {
   display: grid;
   gap: 22px;
   max-width: 1240px;
+  margin-inline: auto;
+}
+
+.uploadWorkGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  align-items: start;
+  gap: 22px;
 }
 
 .uploadFormCard,
@@ -454,7 +463,7 @@ select {
 }
 
 .uploadFormCard {
-  padding: 34px;
+  padding: 30px;
   background: rgba(244, 238, 219, 0.84);
 }
 
@@ -619,7 +628,7 @@ select {
 
 .uploadPortraitFrame {
   position: relative;
-  padding: 20px;
+  padding: 16px;
 }
 
 .uploadPortraitFrame > img,
@@ -675,7 +684,7 @@ select {
 
 .uploadPortraitBody,
 .uploadGuidanceCard {
-  padding: 0 24px 24px;
+  padding: 0 20px 20px;
 }
 
 .uploadPortraitBody {
@@ -700,7 +709,8 @@ select {
 }
 
 .uploadGuidanceHero {
-  padding-top: 24px;
+  padding-top: 20px;
+  padding-bottom: 20px;
 }
 
 .uploadGuidanceTitle {
@@ -718,6 +728,56 @@ select {
   line-height: 1.7;
 }
 
+.uploadGuidanceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.uploadGuideItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.uploadGuideIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(246, 165, 162, 0.5);
+  color: #5a3a2a;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.uploadGuideCopy {
+  display: grid;
+  gap: 4px;
+}
+
+.uploadGuideCopy h3 {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #3e2a1f;
+}
+
+.uploadGuideCopy p {
+  margin: 0;
+  font-size: 0.87rem;
+  line-height: 1.45;
+  color: #6f5a4a;
+}
+
 @media (max-width: 980px) {
   .shell.uploadShell {
     width: min(1200px, calc(100vw - 32px));
@@ -728,8 +788,17 @@ select {
     max-width: 900px;
   }
 
+  .uploadWorkGrid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
   .uploadIntro {
     max-width: 900px;
+  }
+
+  .uploadGuidanceGrid {
+    grid-template-columns: 1fr;
   }
 }
 

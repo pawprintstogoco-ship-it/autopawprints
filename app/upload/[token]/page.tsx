@@ -101,105 +101,131 @@ export default async function UploadPage({
           <section className="uploadGuidanceCard uploadGuidanceHero">
             <div className="eyebrow">Before you upload</div>
             <h2 className="uploadGuidanceTitle">Quick photo checklist</h2>
-            <ul className="uploadGuidanceList">
-              <li>Use a single pet photo with the face fully visible.</li>
-              <li>Avoid heavy shadows, screenshots, and distant shots.</li>
-              <li>Enter the pet name exactly as it should appear on the portrait.</li>
-            </ul>
-          </section>
-
-          <section className="uploadFormCard">
-            {query.success === "1" ? (
-              <div className="uploadSuccessBanner" role="status">
-                Your photo was received. We&apos;ll show progress here as the portrait moves
-                into review.
-              </div>
-            ) : null}
-
-            <div className="uploadSectionHeader">
-              <div>
-                <div className="eyebrow">Upload details</div>
-                <h2>Make it feel like them.</h2>
-              </div>
-              <p>{accentCopy}</p>
-            </div>
-
-            <UploadForm token={token} />
-          </section>
-
-          <section className="uploadPortraitCard">
-            <div className="uploadPortraitFrame">
-              {preview ? (
-                <img
-                  alt={`Preview for ${latestUpload?.petName ?? "your pet"}`}
-                  src={getPublicFileUrl(preview.storageKey)}
-                />
-              ) : latestUpload ? (
-                <img
-                  alt={`Uploaded source photo for ${latestUpload.petName}`}
-                  src={getPublicFileUrl(latestUpload.storageKey)}
-                />
-              ) : (
-                <div className="uploadPlaceholderArt" aria-hidden="true">
-                  <div className="uploadPlaceholderGlow" />
-                  <div className="uploadPlaceholderBadge">Your portrait appears here</div>
-                </div>
-              )}
-
-              <div className="uploadFloatingMeta">
-                <span>
-                  {preview
-                    ? "Latest preview"
-                    : latestUpload
-                      ? "Original upload"
-                      : "Awaiting upload"}
+            <div className="uploadGuidanceGrid">
+              <article className="uploadGuideItem">
+                <span className="uploadGuideIcon" aria-hidden="true">
+                  1
                 </span>
-              </div>
-            </div>
-
-            <div className="uploadPortraitBody">
-              <div className="eyebrow">{latestUpload?.petName ?? order.buyerName}</div>
-
-              {isReadyForDownload ? (
-                <>
-                  <h3>Your portrait is ready.</h3>
-                  <p>Final review is complete and your download link is live.</p>
-                  <a className="button" href={`/download/${order.downloadToken}`}>
-                    Open finished portrait
-                  </a>
-                </>
-              ) : preview ? (
-                <>
-                  <h3>Latest preview</h3>
-                  <p>
-                    The artwork is in review now. If you need a cleaner source photo,
-                    you can upload a new one below.
-                  </p>
-                </>
-              ) : finalPng ? (
-                <>
-                  <h3>Awaiting final review</h3>
-                  <p>The portrait has rendered successfully and is waiting for approval.</p>
-                </>
-              ) : latestUpload ? (
-                <>
-                  <h3>Photo received</h3>
-                  <p>
-                    We&apos;ve attached your photo and the portrait is moving through the
-                    render queue.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h3>What makes a strong upload</h3>
-                  <p>
-                    Use one clear pet photo with good light, visible facial detail, and
-                    minimal blur.
-                  </p>
-                </>
-              )}
+                <div className="uploadGuideCopy">
+                  <h3>Single pet focus</h3>
+                  <p>Use one clear photo with the face fully visible.</p>
+                </div>
+              </article>
+              <article className="uploadGuideItem">
+                <span className="uploadGuideIcon" aria-hidden="true">
+                  2
+                </span>
+                <div className="uploadGuideCopy">
+                  <h3>Good lighting</h3>
+                  <p>Avoid heavy shadows, blur, and screenshot compression.</p>
+                </div>
+              </article>
+              <article className="uploadGuideItem">
+                <span className="uploadGuideIcon" aria-hidden="true">
+                  3
+                </span>
+                <div className="uploadGuideCopy">
+                  <h3>Name accuracy</h3>
+                  <p>Enter the pet name exactly how it should appear on the art.</p>
+                </div>
+              </article>
             </div>
           </section>
+
+          <div className="uploadWorkGrid">
+            <section className="uploadFormCard">
+              {query.success === "1" ? (
+                <div className="uploadSuccessBanner" role="status">
+                  Your photo was received. We&apos;ll show progress here as the portrait moves
+                  into review.
+                </div>
+              ) : null}
+
+              <div className="uploadSectionHeader">
+                <div>
+                  <div className="eyebrow">Upload details</div>
+                  <h2>Make it feel like them.</h2>
+                </div>
+                <p>{accentCopy}</p>
+              </div>
+
+              <UploadForm token={token} />
+            </section>
+
+            <section className="uploadPortraitCard">
+              <div className="uploadPortraitFrame">
+                {preview ? (
+                  <img
+                    alt={`Preview for ${latestUpload?.petName ?? "your pet"}`}
+                    src={getPublicFileUrl(preview.storageKey)}
+                  />
+                ) : latestUpload ? (
+                  <img
+                    alt={`Uploaded source photo for ${latestUpload.petName}`}
+                    src={getPublicFileUrl(latestUpload.storageKey)}
+                  />
+                ) : (
+                  <div className="uploadPlaceholderArt" aria-hidden="true">
+                    <div className="uploadPlaceholderGlow" />
+                    <div className="uploadPlaceholderBadge">Your portrait appears here</div>
+                  </div>
+                )}
+
+                <div className="uploadFloatingMeta">
+                  <span>
+                    {preview
+                      ? "Latest preview"
+                      : latestUpload
+                        ? "Original upload"
+                        : "Awaiting upload"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="uploadPortraitBody">
+                <div className="eyebrow">{latestUpload?.petName ?? order.buyerName}</div>
+
+                {isReadyForDownload ? (
+                  <>
+                    <h3>Your portrait is ready.</h3>
+                    <p>Final review is complete and your download link is live.</p>
+                    <a className="button" href={`/download/${order.downloadToken}`}>
+                      Open finished portrait
+                    </a>
+                  </>
+                ) : preview ? (
+                  <>
+                    <h3>Latest preview</h3>
+                    <p>
+                      The artwork is in review now. If you need a cleaner source photo,
+                      you can upload a new one below.
+                    </p>
+                  </>
+                ) : finalPng ? (
+                  <>
+                    <h3>Awaiting final review</h3>
+                    <p>The portrait has rendered successfully and is waiting for approval.</p>
+                  </>
+                ) : latestUpload ? (
+                  <>
+                    <h3>Photo received</h3>
+                    <p>
+                      We&apos;ve attached your photo and the portrait is moving through the
+                      render queue.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h3>What makes a strong upload</h3>
+                    <p>
+                      Use one clear pet photo with good light, visible facial detail, and
+                      minimal blur.
+                    </p>
+                  </>
+                )}
+              </div>
+            </section>
+          </div>
         </div>
       </section>
     </main>
