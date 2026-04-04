@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OrderStatus } from "@prisma/client";
+import { headers } from "next/headers";
 import { requireAdminSession } from "@/lib/auth";
 import { getOrderById } from "@/lib/orders";
 import { requireEnv } from "@/lib/env";
@@ -23,18 +24,25 @@ export default async function OrderDetailPage({
     ? safelyDecode(query.approveError)
     : null;
   const { APP_URL } = requireEnv();
+  const requestHeaders = await headers();
+  const forwardedHost = requestHeaders.get("x-forwarded-host");
+  const host = forwardedHost ?? requestHeaders.get("host");
+  const forwardedProto = requestHeaders.get("x-forwarded-proto");
+  const protocol = forwardedProto ?? "https";
+  const fallbackOrigin = new URL(APP_URL).origin;
+  const origin = host ? `${protocol}://${host}` : fallbackOrigin;
 
   if (!order) {
     notFound();
   }
 
   const preview = order.artifacts.find((artifact) => artifact.kind === "PREVIEW");
-  const initialUrl = `${APP_URL}/upload/${order.uploadToken}`;
+  const initialUrl = `${origin}/upload/${order.uploadToken}`;
   const initialMessage = `Thank you for your order. Please upload your pet's photo here so that I can start working on it:\n${initialUrl}`;
   const latestFinalArtifact = order.artifacts.find((artifact) => artifact.kind === "FINAL_PNG");
   const deliveryUrl =
     order.status === OrderStatus.DELIVERED && latestFinalArtifact
-      ? getPublicFileUrl(latestFinalArtifact.storageKey)
+      ? `${origin}${getPublicFileUrl(latestFinalArtifact.storageKey)}`
       : undefined;
   const deliveryMessage = deliveryUrl
     ? `Your portrait is ready. Save your final PNG here:\n${deliveryUrl}`
