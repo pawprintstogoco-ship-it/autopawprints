@@ -177,13 +177,10 @@ export function UploadForm({ token }: { token: string }) {
               <span className="spinner" aria-hidden="true" />
               Uploading photo...
             </span>
-          ) : (
-            <span className="buttonContent">
-              Submit photo
-              <span aria-hidden="true">-&gt;</span>
-            </span>
-          )}
-        </motion.button>
+        ) : (
+          <span className="buttonContent">Submit Photo</span>
+        )}
+      </motion.button>
       </AnimatedBlock>
     </motion.form>
   );
