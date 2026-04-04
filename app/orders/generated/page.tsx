@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { getAdminGeneratedGallery } from "@/lib/orders";
+import { OpsTopNav } from "@/app/orders/ops-top-nav";
 
 export default async function GeneratedFilesPage() {
   await requireAdminSession();
@@ -8,6 +9,8 @@ export default async function GeneratedFilesPage() {
 
   return (
     <main className="shell">
+      <OpsTopNav active="generated" />
+
       <section className="hero opsHero">
         <div className="eyebrow">Internal operations</div>
         <h1>Generated portraits.</h1>

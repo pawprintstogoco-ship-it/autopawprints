@@ -6,6 +6,7 @@ import { getOrderById } from "@/lib/orders";
 import { requireEnv } from "@/lib/env";
 import { getPublicFileUrl } from "@/lib/storage";
 import { ManualMessageTools } from "@/app/orders/[id]/manual-message-tools";
+import { OpsTopNav } from "@/app/orders/ops-top-nav";
 
 export default async function OrderDetailPage({
   params,
@@ -41,6 +42,8 @@ export default async function OrderDetailPage({
 
   return (
     <main className="shell">
+      <OpsTopNav active="orders" />
+
       <section className="hero opsHero">
         <div className="eyebrow">Internal operations</div>
         <h1>Receipt {order.receiptId}</h1>

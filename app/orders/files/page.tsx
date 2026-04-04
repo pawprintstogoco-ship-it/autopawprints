@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { getAdminUploadGallery } from "@/lib/orders";
+import { OpsTopNav } from "@/app/orders/ops-top-nav";
 
 export default async function OrderFilesPage() {
   await requireAdminSession();
@@ -8,6 +9,8 @@ export default async function OrderFilesPage() {
 
   return (
     <main className="shell">
+      <OpsTopNav active="uploads" />
+
       <section className="hero opsHero">
         <div className="eyebrow">Internal operations</div>
         <h1>Customer uploads.</h1>

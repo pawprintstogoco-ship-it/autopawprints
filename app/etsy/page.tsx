@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { getEtsyConnectionStatus } from "@/lib/orders";
+import { OpsTopNav } from "@/app/orders/ops-top-nav";
 
 export default async function EtsySetupPage() {
   await requireAdminSession();
@@ -8,6 +9,8 @@ export default async function EtsySetupPage() {
 
   return (
     <main className="shell">
+      <OpsTopNav active="etsy" />
+
       <section className="hero">
         <div className="eyebrow">Etsy pilot</div>
         <h1>Connect the shop and lock the pilot listing.</h1>

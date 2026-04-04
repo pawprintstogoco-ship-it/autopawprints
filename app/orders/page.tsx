@@ -2,6 +2,7 @@ import Link from "next/link";
 import { OrderStatus } from "@prisma/client";
 import { requireAdminSession } from "@/lib/auth";
 import { getDashboardOrders } from "@/lib/orders";
+import { OpsTopNav } from "@/app/orders/ops-top-nav";
 
 const statusOptions = Object.values(OrderStatus);
 
@@ -19,6 +20,8 @@ export default async function OrdersPage({
 
   return (
     <main className="shell">
+      <OpsTopNav active="orders" />
+
       <section className="hero opsHero">
         <div className="eyebrow">Internal operations</div>
         <h1>Order operations dashboard.</h1>
