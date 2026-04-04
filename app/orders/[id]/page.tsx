@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { OrderStatus } from "@prisma/client";
 import { requireAdminSession } from "@/lib/auth";
 import { getOrderById } from "@/lib/orders";
-import { buildDeliveryMessage } from "@/lib/etsy";
 import { requireEnv } from "@/lib/env";
 import { getPublicFileUrl } from "@/lib/storage";
 import { ManualMessageTools } from "@/app/orders/[id]/manual-message-tools";
@@ -28,8 +28,16 @@ export default async function OrderDetailPage({
   }
 
   const preview = order.artifacts.find((artifact) => artifact.kind === "PREVIEW");
-  const deliveryUrl = `${APP_URL}/upload/${order.uploadToken}`;
-  const deliveryMessage = buildDeliveryMessage(deliveryUrl);
+  const initialUrl = `${APP_URL}/upload/${order.uploadToken}`;
+  const initialMessage = `Thank you for your order. Please upload your pet's photo here so that I can start working on it:\n${initialUrl}`;
+  const latestFinalArtifact = order.artifacts.find((artifact) => artifact.kind === "FINAL_PNG");
+  const deliveryUrl =
+    order.status === OrderStatus.DELIVERED && latestFinalArtifact
+      ? getPublicFileUrl(latestFinalArtifact.storageKey)
+      : undefined;
+  const deliveryMessage = deliveryUrl
+    ? `Your portrait is ready. Save your final PNG here:\n${deliveryUrl}`
+    : undefined;
 
   return (
     <main className="shell">
@@ -68,7 +76,12 @@ export default async function OrderDetailPage({
             </div>
           ) : null}
 
-          <ManualMessageTools deliveryUrl={deliveryUrl} message={deliveryMessage} />
+          <ManualMessageTools
+            initialUrl={initialUrl}
+            initialMessage={initialMessage}
+            deliveryUrl={deliveryUrl}
+            deliveryMessage={deliveryMessage}
+          />
 
           {preview ? (
             <img

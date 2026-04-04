@@ -10,7 +10,7 @@ import { enqueueRenderJob } from "@/lib/queue";
 import { buildDigitalSaleMessage } from "@/lib/etsy";
 import { analyzeImage, renderPortrait } from "@/lib/render";
 import { scheduleMissingPhotoReminders } from "@/lib/reminders";
-import { deleteObject, getBuffer, putBuffer } from "@/lib/storage";
+import { deleteObject, getBuffer, getPublicFileUrl, putBuffer } from "@/lib/storage";
 import { createToken } from "@/lib/tokens";
 import { requireEnv } from "@/lib/env";
 
@@ -685,7 +685,8 @@ export async function approveOrder(orderId: string) {
       createdAt: "desc"
     },
     select: {
-      id: true
+      id: true,
+      storageKey: true
     }
   });
 
@@ -693,7 +694,7 @@ export async function approveOrder(orderId: string) {
     throw new Error("Cannot approve before a final portrait is generated");
   }
 
-  const deliveryUrl = `${APP_URL}/upload/${order.uploadToken}`;
+  const deliveryUrl = getPublicFileUrl(finalArtifact.storageKey);
 
   return prisma.order.update({
     where: {
@@ -717,7 +718,7 @@ export async function approveOrder(orderId: string) {
         create: {
           channel: MessageChannel.INTERNAL,
           eventType: "delivery.manual_message_required",
-          body: `Send Etsy message manually with this delivery link: ${deliveryUrl}`
+          body: `Send Etsy message manually with this final PNG link: ${deliveryUrl}`
         }
       },
       auditLog: {

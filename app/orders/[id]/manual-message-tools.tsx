@@ -3,20 +3,24 @@
 import { useState } from "react";
 
 export function ManualMessageTools({
+  initialUrl,
+  initialMessage,
   deliveryUrl,
-  message
+  deliveryMessage
 }: {
-  deliveryUrl: string;
-  message: string;
+  initialUrl: string;
+  initialMessage: string;
+  deliveryUrl?: string;
+  deliveryMessage?: string;
 }) {
-  const [copied, setCopied] = useState<"link" | "message" | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
-  async function copyText(value: string, kind: "link" | "message") {
+  async function copyText(value: string, key: string) {
     try {
       await navigator.clipboard.writeText(value);
-      setCopied(kind);
+      setCopied(key);
       window.setTimeout(() => {
-        setCopied((current) => (current === kind ? null : current));
+        setCopied((current) => (current === key ? null : current));
       }, 1500);
     } catch {
       setCopied(null);
@@ -26,25 +30,55 @@ export function ManualMessageTools({
   return (
     <article className="card stack">
       <div className="eyebrow">Manual Etsy message</div>
-      <span className="muted">Copy and paste this into Etsy chat after approval.</span>
-      <input className="uploadTextInput" value={deliveryUrl} readOnly />
-      <textarea className="uploadTextarea" value={message} rows={4} readOnly />
+      <span className="muted">Copy and paste into Etsy chat.</span>
+
+      <strong>Initial link</strong>
+      <input className="uploadTextInput" value={initialUrl} readOnly />
+      <textarea className="uploadTextarea" value={initialMessage} rows={4} readOnly />
       <div className="actions">
         <button
           className="buttonSecondary"
           type="button"
-          onClick={() => copyText(deliveryUrl, "link")}
+          onClick={() => copyText(initialUrl, "initial_link")}
         >
-          {copied === "link" ? "Copied link" : "Copy delivery link"}
+          {copied === "initial_link" ? "Copied link" : "Copy initial link"}
         </button>
         <button
           className="buttonSecondary"
           type="button"
-          onClick={() => copyText(message, "message")}
+          onClick={() => copyText(initialMessage, "initial_message")}
         >
-          {copied === "message" ? "Copied message" : "Copy Etsy message"}
+          {copied === "initial_message" ? "Copied message" : "Copy initial message"}
         </button>
       </div>
+
+      <strong>Portrait ready link</strong>
+      {deliveryUrl && deliveryMessage ? (
+        <>
+          <input className="uploadTextInput" value={deliveryUrl} readOnly />
+          <textarea className="uploadTextarea" value={deliveryMessage} rows={4} readOnly />
+          <div className="actions">
+            <button
+              className="buttonSecondary"
+              type="button"
+              onClick={() => copyText(deliveryUrl, "delivery_link")}
+            >
+              {copied === "delivery_link" ? "Copied link" : "Copy ready link"}
+            </button>
+            <button
+              className="buttonSecondary"
+              type="button"
+              onClick={() => copyText(deliveryMessage, "delivery_message")}
+            >
+              {copied === "delivery_message" ? "Copied message" : "Copy ready message"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <span className="muted">
+          Available after you click Approve and deliver.
+        </span>
+      )}
     </article>
   );
 }
