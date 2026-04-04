@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { getOrderByUploadToken } from "@/lib/orders";
-import { getPublicFileUrl } from "@/lib/storage";
 import { UploadForm } from "@/app/upload/[token]/upload-form";
 
 export default async function UploadPage({
@@ -19,9 +18,8 @@ export default async function UploadPage({
   }
 
   const latestUpload = order.uploads[0] ?? null;
-  const preview = order.artifacts.find((artifact) => artifact.kind === "PREVIEW") ?? null;
-  const finalPng = order.artifacts.find((artifact) => artifact.kind === "FINAL_PNG") ?? null;
   const isReadyForDownload = Boolean(order.downloadToken && order.status === "DELIVERED");
+  const hasUploadedPhoto = Boolean(latestUpload);
   const statusLabel = order.status.replaceAll("_", " ");
   const processSteps = [
     {
@@ -30,10 +28,7 @@ export default async function UploadPage({
     },
     {
       label: "Artist review",
-      active:
-        order.status !== "AWAITING_PHOTO" &&
-        order.status !== "PHOTO_RECEIVED" &&
-        order.status !== "PAID"
+      active: hasUploadedPhoto || order.status === "AWAITING_APPROVAL" || isReadyForDownload
     },
     {
       label: "Delivery",
@@ -102,10 +97,9 @@ export default async function UploadPage({
         <div className="uploadFlow">
           <div className="uploadWorkGrid">
             <section className="uploadFormCard">
-              {query.success === "1" ? (
+              {query.success === "1" || hasUploadedPhoto ? (
                 <div className="uploadSuccessBanner" role="status">
-                  Your photo was received. We&apos;ll show progress here as the portrait moves
-                  into review.
+                  Photo received. Your portrait is now under artist review.
                 </div>
               ) : null}
 
@@ -117,35 +111,26 @@ export default async function UploadPage({
                 <p>{accentCopy}</p>
               </div>
 
-              <UploadForm token={token} />
+              {hasUploadedPhoto ? (
+                <div className="uploadLockedMessage">
+                  Upload is complete for this order. We&apos;ll contact you once the portrait
+                  review is finished.
+                </div>
+              ) : (
+                <UploadForm token={token} />
+              )}
             </section>
 
             <section className="uploadPortraitCard">
               <div className="uploadPortraitFrame">
-                {preview ? (
-                  <img
-                    alt={`Preview for ${latestUpload?.petName ?? "your pet"}`}
-                    src={getPublicFileUrl(preview.storageKey)}
-                  />
-                ) : latestUpload ? (
-                  <img
-                    alt={`Uploaded source photo for ${latestUpload.petName}`}
-                    src={getPublicFileUrl(latestUpload.storageKey)}
-                  />
-                ) : (
-                  <div className="uploadPlaceholderArt" aria-hidden="true">
-                    <div className="uploadPlaceholderGlow" />
-                    <div className="uploadPlaceholderBadge">Your portrait appears here</div>
-                  </div>
-                )}
+                <img
+                  alt="Artist sketching a pet portrait"
+                  src="/brand/artist-working.svg"
+                />
 
                 <div className="uploadFloatingMeta">
                   <span>
-                    {preview
-                      ? "Latest preview"
-                      : latestUpload
-                        ? "Original upload"
-                        : "Awaiting upload"}
+                    {hasUploadedPhoto ? "Under review" : "Upload pending"}
                   </span>
                 </div>
               </div>
@@ -161,25 +146,12 @@ export default async function UploadPage({
                       Open finished portrait
                     </a>
                   </>
-                ) : preview ? (
+                ) : hasUploadedPhoto ? (
                   <>
-                    <h3>Latest preview</h3>
+                    <h3>Under review</h3>
                     <p>
-                      The artwork is in review now. If you need a cleaner source photo,
-                      you can upload a new one below.
-                    </p>
-                  </>
-                ) : finalPng ? (
-                  <>
-                    <h3>Awaiting final review</h3>
-                    <p>The portrait has rendered successfully and is waiting for approval.</p>
-                  </>
-                ) : latestUpload ? (
-                  <>
-                    <h3>Photo received</h3>
-                    <p>
-                      We&apos;ve attached your photo and the portrait is moving through the
-                      render queue.
+                      Our artist is now working on your pet portrait. We&apos;ll update this page
+                      when the review step is complete.
                     </p>
                   </>
                 ) : (

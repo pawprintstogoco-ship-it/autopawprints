@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500" role="img" aria-label="Artist sketching a pet portrait">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f6efe2"/>
+      <stop offset="100%" stop-color="#eadfce"/>
+    </linearGradient>
+    <linearGradient id="easel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9b7154"/>
+      <stop offset="100%" stop-color="#7d553c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="1500" fill="url(#bg)"/>
+
+  <circle cx="230" cy="180" r="120" fill="#f0d8bb" opacity="0.45"/>
+  <circle cx="980" cy="260" r="140" fill="#efd2cd" opacity="0.42"/>
+
+  <rect x="350" y="190" width="500" height="780" rx="32" fill="#fffaf4"/>
+  <rect x="380" y="230" width="440" height="700" rx="20" fill="#f8f3ea"/>
+
+  <path d="M600 940 L470 1300 H530 L600 1030 L670 1300 H730 Z" fill="url(#easel)"/>
+  <rect x="575" y="150" width="50" height="1240" rx="24" fill="#875d43"/>
+
+  <g transform="translate(455 320)">
+    <ellipse cx="140" cy="190" rx="170" ry="210" fill="#f5cfa4"/>
+    <ellipse cx="80" cy="120" rx="70" ry="110" fill="#d7965f"/>
+    <ellipse cx="200" cy="120" rx="70" ry="110" fill="#d7965f"/>
+    <ellipse cx="140" cy="220" rx="84" ry="78" fill="#f2bb85"/>
+    <circle cx="95" cy="200" r="16" fill="#5f3b2b"/>
+    <circle cx="185" cy="200" r="16" fill="#5f3b2b"/>
+    <path d="M120 248 Q140 264 160 248" stroke="#6a4331" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="M140 232 L130 252 L150 252 Z" fill="#7a4e3a"/>
+  </g>
+
+  <g transform="translate(100 980)">
+    <path d="M0 180 Q220 40 410 140" stroke="#d9b594" stroke-width="28" fill="none" stroke-linecap="round"/>
+    <path d="M350 150 L560 10" stroke="#7e4f37" stroke-width="20" stroke-linecap="round"/>
+    <circle cx="565" cy="7" r="18" fill="#d18f68"/>
+    <circle cx="180" cy="160" r="70" fill="#f2c49a"/>
+  </g>
+
+  <text x="600" y="1360" text-anchor="middle" fill="#6c4f3c" font-family="Arial, sans-serif" font-size="48" font-weight="700">
+    Artist At Work
+  </text>
+</svg>

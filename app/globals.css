@@ -514,6 +514,14 @@ select {
   color: #486646;
 }
 
+.uploadLockedMessage {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #5f4a3a;
+  line-height: 1.5;
+}
+
 .uploadForm {
   display: grid;
   gap: 18px;

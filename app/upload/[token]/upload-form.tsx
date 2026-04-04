@@ -31,6 +31,15 @@ export function UploadForm({ token }: { token: string }) {
       const request = new XMLHttpRequest();
       request.open("POST", `/api/uploads/${token}`);
       request.responseType = "json";
+      let settled = false;
+
+      const finish = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve();
+      };
 
       request.upload.addEventListener("progress", (progressEvent) => {
         if (!progressEvent.lengthComputable) {
@@ -43,9 +52,10 @@ export function UploadForm({ token }: { token: string }) {
       request.addEventListener("load", () => {
         if (request.status >= 200 && request.status < 400) {
           setUploadProgress(100);
-          router.push(`/upload/${token}?success=1`);
+          setIsSubmitting(false);
+          router.replace(`/upload/${token}?success=1`);
           router.refresh();
-          resolve();
+          finish();
           return;
         }
 
@@ -58,17 +68,38 @@ export function UploadForm({ token }: { token: string }) {
         setErrorMessage(response?.error ?? fallback);
         setIsSubmitting(false);
         setUploadProgress(0);
-        resolve();
+        finish();
       });
 
       request.addEventListener("error", () => {
         setErrorMessage("Upload failed. Please check your connection and try again.");
         setIsSubmitting(false);
         setUploadProgress(0);
-        resolve();
+        finish();
+      });
+
+      request.addEventListener("abort", () => {
+        setErrorMessage("Upload was interrupted. Please try again.");
+        setIsSubmitting(false);
+        setUploadProgress(0);
+        finish();
       });
 
       request.send(formData);
+
+      window.setTimeout(() => {
+        if (!settled) {
+          setErrorMessage("Upload timed out. Please try again.");
+          setIsSubmitting(false);
+          setUploadProgress(0);
+          try {
+            request.abort();
+          } catch {
+            // no-op
+          }
+          finish();
+        }
+      }, 20000);
     });
   }
 
@@ -81,7 +112,7 @@ export function UploadForm({ token }: { token: string }) {
       transition={{ duration: 0.4 }}
     >
       <AnimatedBlock delay={0.02} className="uploadFormNote">
-        Re-uploading a new photo will replace the current source image for the next render.
+        Upload one photo to start your portrait review.
       </AnimatedBlock>
 
       <AnimatedBlock as="label" delay={0.08} className="uploadField">
