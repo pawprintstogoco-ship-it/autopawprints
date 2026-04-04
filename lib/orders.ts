@@ -396,17 +396,20 @@ export async function getOrderByUploadToken(token: string) {
         gt: new Date()
       }
     },
-    include: {
+    select: {
+      id: true,
+      buyerName: true,
+      status: true,
+      downloadToken: true,
       uploads: {
+        select: {
+          id: true,
+          petName: true
+        },
         orderBy: {
           createdAt: "desc"
         },
         take: 1
-      },
-      artifacts: {
-        orderBy: {
-          createdAt: "desc"
-        }
       }
     }
   });
