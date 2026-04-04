@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { getOrderByUploadToken } from "@/lib/orders";
 import { UploadForm } from "@/app/upload/[token]/upload-form";
 
 export default async function UploadPage({
@@ -7,36 +6,26 @@ export default async function UploadPage({
   searchParams
 }: {
   params: Promise<{ token: string }>;
-  searchParams?: Promise<{ success?: string }>;
+  searchParams?: Promise<{
+    success?: string;
+    delivered?: string;
+    download?: string;
+    underReview?: string;
+  }>;
 }) {
   const { token } = await params;
   const query = (await searchParams) ?? {};
-  const order = await getOrderByUploadToken(token);
-
-  if (!order) {
+  if (!token) {
     notFound();
   }
 
-  const latestUpload = order.uploads[0] ?? null;
-  const isReadyForDownload = Boolean(order.downloadToken && order.status === "DELIVERED");
-  const hasUploadedPhoto = Boolean(latestUpload);
-  const statusLabel = order.status.replaceAll("_", " ");
-  const processSteps = [
-    {
-      label: "Upload",
-      active: true
-    },
-    {
-      label: "Artist review",
-      active: hasUploadedPhoto || order.status === "AWAITING_APPROVAL" || isReadyForDownload
-    },
-    {
-      label: "Delivery",
-      active: isReadyForDownload
-    }
-  ];
-  const accentCopy = latestUpload
-    ? `Your latest file for ${latestUpload.petName} is safely attached to this order.`
+  const hasUploadedPhoto = query.success === "1" || query.underReview === "1";
+  const isDelivered = query.delivered === "1";
+  const deliveryHref = query.download ? `/download/${query.download}` : null;
+  const accentCopy = isDelivered
+    ? "Your portrait is finished and ready for delivery."
+    : hasUploadedPhoto
+    ? "Photo received. Your artist is now working on the portrait."
     : "A clear photo with good lighting helps the portrait render cleanly.";
 
   return (
@@ -59,31 +48,15 @@ export default async function UploadPage({
             />
           </a>
           <div className="uploadMastheadMeta">
-            <span className="uploadOrderMeta">Private order link</span>
+            <span className="uploadOrderMeta">Customer upload link</span>
           </div>
         </header>
 
         <div className="uploadIntro">
-          <div className="uploadKickerRow">
-            <span className="uploadStatusPill">{statusLabel}</span>
-            <span className="uploadOrderMeta">Upload portal</span>
-          </div>
-
           <div className="uploadHero">
             <div className="uploadHeroCopy">
-              <h1>Refining the portrait.</h1>
-              <p>Upload your photo and pet name.</p>
-            </div>
-
-            <div className="uploadStepper" aria-label="Order progress">
-              {processSteps.map((step) => (
-                <div
-                  key={step.label}
-                  className={step.active ? "uploadStepChip isActive" : "uploadStepChip"}
-                >
-                  {step.label}
-                </div>
-              ))}
+              <h1>Upload your pet photo.</h1>
+              <p>Submit one clear image and the exact pet name for your portrait.</p>
             </div>
           </div>
 
@@ -97,7 +70,11 @@ export default async function UploadPage({
         <div className="uploadFlow">
           <div className="uploadWorkGrid">
             <section className="uploadFormCard">
-              {query.success === "1" || hasUploadedPhoto ? (
+              {isDelivered ? (
+                <div className="uploadSuccessBanner" role="status">
+                  Portrait complete. Your delivery is ready.
+                </div>
+              ) : query.success === "1" || hasUploadedPhoto ? (
                 <div className="uploadSuccessBanner" role="status">
                   Photo received. Your portrait is now under artist review.
                 </div>
@@ -106,15 +83,24 @@ export default async function UploadPage({
               <div className="uploadSectionHeader">
                 <div>
                   <div className="eyebrow">Upload details</div>
-                  <h2>Make it feel like them.</h2>
+                  <h2>Upload portrait reference</h2>
                 </div>
                 <p>{accentCopy}</p>
               </div>
 
-              {hasUploadedPhoto ? (
+              {isDelivered && deliveryHref ? (
+                <a className="button" href={deliveryHref}>
+                  Open final portrait
+                </a>
+              ) : isDelivered ? (
                 <div className="uploadLockedMessage">
-                  Upload is complete for this order. We&apos;ll contact you once the portrait
-                  review is finished.
+                  Your portrait is ready. Use your delivery link from email/message to open
+                  the final files.
+                </div>
+              ) : hasUploadedPhoto ? (
+                <div className="uploadLockedMessage">
+                  Upload is complete for this order. The artist is currently working on your
+                  portrait.
                 </div>
               ) : (
                 <UploadForm token={token} />
@@ -136,15 +122,14 @@ export default async function UploadPage({
               </div>
 
               <div className="uploadPortraitBody">
-                <div className="eyebrow">{latestUpload?.petName ?? order.buyerName}</div>
+                <div className="eyebrow">
+                  {isDelivered ? "Delivery ready" : hasUploadedPhoto ? "Artist review" : "Upload status"}
+                </div>
 
-                {isReadyForDownload ? (
+                {isDelivered ? (
                   <>
                     <h3>Your portrait is ready.</h3>
-                    <p>Final review is complete and your download link is live.</p>
-                    <a className="button" href={`/download/${order.downloadToken}`}>
-                      Open finished portrait
-                    </a>
+                    <p>Your final portrait has been completed and is ready to open.</p>
                   </>
                 ) : hasUploadedPhoto ? (
                   <>
