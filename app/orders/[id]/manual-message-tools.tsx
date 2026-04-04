@@ -33,16 +33,30 @@ export function ManualMessageTools({
       <span className="muted">Copy and paste into Etsy chat.</span>
 
       <strong>Initial link</strong>
-      <input className="uploadTextInput" value={initialUrl} readOnly />
-      <textarea className="uploadTextarea" value={initialMessage} rows={4} readOnly />
-      <div className="actions">
+      <div className="copyFieldRow">
+        <input className="uploadTextInput copyFieldInput" value={initialUrl} readOnly />
         <button
-          className="buttonSecondary"
+          className="copyIconButton"
           type="button"
           onClick={() => copyText(initialUrl, "initial_link")}
+          aria-label="Copy initial link"
+          title={copied === "initial_link" ? "Copied" : "Copy initial link"}
         >
-          {copied === "initial_link" ? "Copied link" : "Copy initial link"}
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="copyIcon">
+            <path
+              d="M9 9h9v11H9zM6 4h9v2H8v9H6z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
+      </div>
+      {copied === "initial_link" ? <span className="muted">Copied link</span> : null}
+      <textarea className="uploadTextarea" value={initialMessage} rows={4} readOnly />
+      <div className="actions">
         <button
           className="buttonSecondary"
           type="button"
