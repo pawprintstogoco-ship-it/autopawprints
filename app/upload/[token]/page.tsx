@@ -3,6 +3,11 @@ import { OrderStatus } from "@prisma/client";
 import { UploadForm } from "@/app/upload/[token]/upload-form";
 import { getOrderByUploadToken } from "@/lib/orders";
 import { getPublicFileUrl } from "@/lib/storage";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "PawprintsCA Upload"
+};
 
 export default async function UploadPage({
   params
@@ -28,7 +33,7 @@ export default async function UploadPage({
     ? "Your portrait is finished and ready for delivery."
     : hasUploadedPhoto
     ? "Photo received. Your artist is now working on the portrait."
-    : "A clear photo with good lighting helps the portrait render cleanly.";
+    : "A clear photo with good lighting helps the artist draw accurate details.";
 
   return (
     <main className="uploadPage">
@@ -57,7 +62,7 @@ export default async function UploadPage({
         <div className="uploadIntro">
           <div className="uploadHero">
             <div className="uploadHeroCopy">
-              <h1>Upload your pet photo.</h1>
+              <h1>PawprintsCA Upload</h1>
               <p>Submit one clear image and the exact pet name for your portrait.</p>
             </div>
           </div>

@@ -8,6 +8,7 @@ export function UploadForm({ token }: { token: string }) {
   const router = useRouter();
   const photoInputId = useId();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
@@ -24,6 +25,7 @@ export function UploadForm({ token }: { token: string }) {
     const formData = new FormData(form);
 
     setIsSubmitting(true);
+    setIsComplete(false);
     setUploadProgress(0);
     setErrorMessage("");
 
@@ -52,10 +54,13 @@ export function UploadForm({ token }: { token: string }) {
       request.addEventListener("load", () => {
         if (request.status >= 200 && request.status < 400) {
           setUploadProgress(100);
+          setIsComplete(true);
           setIsSubmitting(false);
-          router.replace(`/upload/${token}`);
-          router.refresh();
-          finish();
+          window.setTimeout(() => {
+            router.replace(`/upload/${token}`);
+            router.refresh();
+            finish();
+          }, 450);
           return;
         }
 
@@ -66,6 +71,7 @@ export function UploadForm({ token }: { token: string }) {
             : null;
 
         setErrorMessage(response?.error ?? fallback);
+        setIsComplete(false);
         setIsSubmitting(false);
         setUploadProgress(0);
         finish();
@@ -73,6 +79,7 @@ export function UploadForm({ token }: { token: string }) {
 
       request.addEventListener("error", () => {
         setErrorMessage("Upload failed. Please check your connection and try again.");
+        setIsComplete(false);
         setIsSubmitting(false);
         setUploadProgress(0);
         finish();
@@ -80,6 +87,7 @@ export function UploadForm({ token }: { token: string }) {
 
       request.addEventListener("abort", () => {
         setErrorMessage("Upload was interrupted. Please try again.");
+        setIsComplete(false);
         setIsSubmitting(false);
         setUploadProgress(0);
         finish();
@@ -90,6 +98,7 @@ export function UploadForm({ token }: { token: string }) {
       window.setTimeout(() => {
         if (!settled) {
           setErrorMessage("Upload timed out. Please try again.");
+          setIsComplete(false);
           setIsSubmitting(false);
           setUploadProgress(0);
           try {
@@ -148,18 +157,8 @@ export function UploadForm({ token }: { token: string }) {
         </label>
       </AnimatedBlock>
 
-      <AnimatedBlock as="label" delay={0.2} className="uploadField">
-        <span className="uploadFieldLabel">Notes for artist</span>
-        <textarea
-          className="uploadTextarea"
-          name="notes"
-          rows={5}
-          placeholder="Any specific details we should focus on?"
-        />
-      </AnimatedBlock>
-
       <AnimatePresence initial={false}>
-        {isSubmitting ? (
+        {isSubmitting || isComplete ? (
           <motion.div
             key="progress"
             className="uploadProgressCard"
@@ -175,7 +174,9 @@ export function UploadForm({ token }: { token: string }) {
                 transition={{ ease: "easeOut", duration: 0.2 }}
               />
             </div>
-            <div className="progressLabel">Uploading photo... {uploadProgress}%</div>
+            <div className="progressLabel">
+              {isComplete ? "Upload complete. Preparing your confirmation..." : `Uploading photo... ${uploadProgress}%`}
+            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -199,15 +200,17 @@ export function UploadForm({ token }: { token: string }) {
         <motion.button
           className="uploadSubmitButton"
           type="submit"
-          disabled={isSubmitting}
-          whileHover={isSubmitting ? undefined : { y: -2, scale: 1.01 }}
-          whileTap={isSubmitting ? undefined : { scale: 0.99 }}
+          disabled={isSubmitting || isComplete}
+          whileHover={isSubmitting || isComplete ? undefined : { y: -2, scale: 1.01 }}
+          whileTap={isSubmitting || isComplete ? undefined : { scale: 0.99 }}
         >
           {isSubmitting ? (
             <span className="buttonContent">
               <span className="spinner" aria-hidden="true" />
               Uploading photo...
             </span>
+        ) : isComplete ? (
+          <span className="buttonContent">Upload Complete</span>
         ) : (
           <span className="buttonContent">Submit Photo</span>
         )}
