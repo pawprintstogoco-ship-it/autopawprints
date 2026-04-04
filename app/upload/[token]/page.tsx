@@ -71,14 +71,13 @@ export default async function UploadPage({
         <div className="uploadIntro">
           <div className="uploadKickerRow">
             <span className="uploadStatusPill">{statusLabel}</span>
-            <span className="uploadOrderMeta">Secure upload portal</span>
+            <span className="uploadOrderMeta">Upload portal</span>
           </div>
 
           <div className="uploadHero">
             <div className="uploadHeroCopy">
-              <div className="eyebrow">Portrait upload</div>
               <h1>Refining the portrait.</h1>
-              <p>Upload your best photo, confirm the pet name, and we handle the rest.</p>
+              <p>Upload your photo and pet name.</p>
             </div>
 
             <div className="uploadStepper" aria-label="Order progress">
@@ -92,43 +91,15 @@ export default async function UploadPage({
               ))}
             </div>
           </div>
+
+          <div className="uploadQuickTips" role="note" aria-label="Upload tips">
+            <span className="uploadQuickTip">Clear face</span>
+            <span className="uploadQuickTip">Good light</span>
+            <span className="uploadQuickTip">Exact pet name</span>
+          </div>
         </div>
 
         <div className="uploadFlow">
-          <section className="uploadGuidanceCard uploadGuidanceHero">
-            <div className="eyebrow">Before you upload</div>
-            <h2 className="uploadGuidanceTitle">Quick photo checklist</h2>
-            <div className="uploadGuidanceGrid">
-              <article className="uploadGuideItem">
-                <span className="uploadGuideIcon" aria-hidden="true">
-                  1
-                </span>
-                <div className="uploadGuideCopy">
-                  <h3>Single pet focus</h3>
-                  <p>Use one clear photo with the face fully visible.</p>
-                </div>
-              </article>
-              <article className="uploadGuideItem">
-                <span className="uploadGuideIcon" aria-hidden="true">
-                  2
-                </span>
-                <div className="uploadGuideCopy">
-                  <h3>Good lighting</h3>
-                  <p>Avoid heavy shadows, blur, and screenshot compression.</p>
-                </div>
-              </article>
-              <article className="uploadGuideItem">
-                <span className="uploadGuideIcon" aria-hidden="true">
-                  3
-                </span>
-                <div className="uploadGuideCopy">
-                  <h3>Name accuracy</h3>
-                  <p>Enter the pet name exactly how it should appear on the art.</p>
-                </div>
-              </article>
-            </div>
-          </section>
-
           <div className="uploadWorkGrid">
             <section className="uploadFormCard">
               {query.success === "1" ? (
