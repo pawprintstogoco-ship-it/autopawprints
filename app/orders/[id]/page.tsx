@@ -2,22 +2,34 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { getOrderById } from "@/lib/orders";
+import { buildDeliveryMessage } from "@/lib/etsy";
+import { requireEnv } from "@/lib/env";
 import { getPublicFileUrl } from "@/lib/storage";
+import { ManualMessageTools } from "@/app/orders/[id]/manual-message-tools";
 
 export default async function OrderDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ approveError?: string }>;
 }) {
   await requireAdminSession();
   const { id } = await params;
+  const query = (await searchParams) ?? {};
   const order = await getOrderById(id);
+  const approveErrorMessage = query.approveError
+    ? safelyDecode(query.approveError)
+    : null;
+  const { APP_URL } = requireEnv();
 
   if (!order) {
     notFound();
   }
 
   const preview = order.artifacts.find((artifact) => artifact.kind === "PREVIEW");
+  const deliveryUrl = `${APP_URL}/upload/${order.uploadToken}`;
+  const deliveryMessage = buildDeliveryMessage(deliveryUrl);
 
   return (
     <main className="shell">
@@ -49,6 +61,14 @@ export default async function OrderDetailPage({
               </button>
             </form>
           </div>
+
+          {approveErrorMessage ? (
+            <div className="errorBanner" role="alert">
+              Approval failed: {approveErrorMessage}
+            </div>
+          ) : null}
+
+          <ManualMessageTools deliveryUrl={deliveryUrl} message={deliveryMessage} />
 
           {preview ? (
             <img
@@ -123,4 +143,12 @@ export default async function OrderDetailPage({
       </section>
     </main>
   );
+}
+
+function safelyDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }

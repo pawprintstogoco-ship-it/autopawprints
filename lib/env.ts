@@ -19,7 +19,11 @@ const envSchema = z.object({
   ETSY_WEBHOOK_CALLBACK_URL: z.string().url(),
   ETSY_WEBHOOK_SIGNING_SECRET: z.string().min(1),
   ETSY_API_BASE_URL: z.string().url(),
-  ETSY_DIGITAL_SALE_MESSAGE_TEMPLATE: z.string().min(1)
+  ETSY_DIGITAL_SALE_MESSAGE_TEMPLATE: z.string().min(1),
+  ETSY_DELIVERY_MESSAGE_TEMPLATE: z
+    .string()
+    .min(1)
+    .default("Your portrait is ready. Open it here: {{DELIVERY_URL}}")
 });
 
 export const env = envSchema.safeParse(process.env);

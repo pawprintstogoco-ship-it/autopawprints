@@ -1,27 +1,29 @@
 import { notFound } from "next/navigation";
+import { OrderStatus } from "@prisma/client";
 import { UploadForm } from "@/app/upload/[token]/upload-form";
+import { getOrderByUploadToken } from "@/lib/orders";
+import { getPublicFileUrl } from "@/lib/storage";
 
 export default async function UploadPage({
-  params,
-  searchParams
+  params
 }: {
   params: Promise<{ token: string }>;
-  searchParams?: Promise<{
-    success?: string;
-    delivered?: string;
-    download?: string;
-    underReview?: string;
-  }>;
 }) {
   const { token } = await params;
-  const query = (await searchParams) ?? {};
   if (!token) {
     notFound();
   }
 
-  const hasUploadedPhoto = query.success === "1" || query.underReview === "1";
-  const isDelivered = query.delivered === "1";
-  const deliveryHref = query.download ? `/download/${query.download}` : null;
+  const order = await getOrderByUploadToken(token);
+
+  if (!order) {
+    notFound();
+  }
+
+  const hasUploadedPhoto = order.uploads.length > 0;
+  const finalArtifact = order.finalArtifacts[0] ?? null;
+  const isDelivered = order.status === OrderStatus.DELIVERED && Boolean(finalArtifact);
+  const finalImageUrl = finalArtifact ? getPublicFileUrl(finalArtifact.storageKey) : null;
   const accentCopy = isDelivered
     ? "Your portrait is finished and ready for delivery."
     : hasUploadedPhoto
@@ -72,9 +74,9 @@ export default async function UploadPage({
             <section className="uploadFormCard">
               {isDelivered ? (
                 <div className="uploadSuccessBanner" role="status">
-                  Portrait complete. Your delivery is ready.
+                  Portrait complete. Your delivery is ready for download.
                 </div>
-              ) : query.success === "1" || hasUploadedPhoto ? (
+              ) : hasUploadedPhoto ? (
                 <div className="uploadSuccessBanner" role="status">
                   Photo received. Your portrait is now under artist review.
                 </div>
@@ -88,14 +90,14 @@ export default async function UploadPage({
                 <p>{accentCopy}</p>
               </div>
 
-              {isDelivered && deliveryHref ? (
-                <a className="button" href={deliveryHref}>
-                  Open final portrait
+              {isDelivered && finalImageUrl ? (
+                <a className="button" href={finalImageUrl} download>
+                  Save final portrait
                 </a>
               ) : isDelivered ? (
                 <div className="uploadLockedMessage">
-                  Your portrait is ready. Use your delivery link from email/message to open
-                  the final files.
+                  Your portrait is ready. If your save button does not appear, please refresh
+                  this page.
                 </div>
               ) : hasUploadedPhoto ? (
                 <div className="uploadLockedMessage">
@@ -109,14 +111,18 @@ export default async function UploadPage({
 
             <section className="uploadPortraitCard">
               <div className="uploadPortraitFrame">
-                <img
-                  alt="Artist sketching a pet portrait"
-                  src="/brand/artist-working.svg"
-                />
+                {isDelivered && finalImageUrl ? (
+                  <img alt="Final pet portrait" src={finalImageUrl} />
+                ) : (
+                  <img
+                    alt="Artist sketching a pet portrait"
+                    src="/brand/artist-working.svg"
+                  />
+                )}
 
                 <div className="uploadFloatingMeta">
                   <span>
-                    {hasUploadedPhoto ? "Under review" : "Upload pending"}
+                    {isDelivered ? "Ready to save" : hasUploadedPhoto ? "Under review" : "Upload pending"}
                   </span>
                 </div>
               </div>

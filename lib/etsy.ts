@@ -71,6 +71,11 @@ export function buildDigitalSaleMessage(uploadUrl: string) {
   return ETSY_DIGITAL_SALE_MESSAGE_TEMPLATE.replace("{{UPLOAD_URL}}", uploadUrl);
 }
 
+export function buildDeliveryMessage(deliveryUrl: string) {
+  const { ETSY_DELIVERY_MESSAGE_TEMPLATE } = requireEnv();
+  return ETSY_DELIVERY_MESSAGE_TEMPLATE.replace("{{DELIVERY_URL}}", deliveryUrl);
+}
+
 export function getEtsyScopes() {
   return ["shops_r", "shops_w", "transactions_r"];
 }

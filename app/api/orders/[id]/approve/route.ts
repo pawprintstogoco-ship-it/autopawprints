@@ -8,7 +8,15 @@ export async function POST(
 ) {
   await requireAdminSession();
   const { id } = await context.params;
-  await approveOrder(id);
+  try {
+    await approveOrder(id);
+  } catch (error) {
+    const message =
+      error instanceof Error ? encodeURIComponent(error.message) : "approval_failed";
+    return NextResponse.redirect(new URL(`/orders/${id}?approveError=${message}`, request.url), {
+      status: 303
+    });
+  }
 
   return NextResponse.redirect(new URL(`/orders/${id}`, request.url), {
     status: 303

@@ -10,7 +10,7 @@ PawPrints Automation is a Next.js app for running custom Etsy portrait orders th
 - Tokenized customer upload flow at `/upload/[token]`
 - AI-assisted portrait renderer using OpenAI image edits plus `sharp` and `pdf-lib`
 - Approval, rerender, and manual-attention admin actions
-- Delivery links and portal-first fulfillment
+- Token-page delivery on the same customer upload link after approval
 - Background worker hooks for rendering, reminders, and delivery
 - Pilot-listing gating so only one Etsy listing auto-enters the flow
 - Prisma schema for Postgres-backed persistence and Etsy connection state
@@ -39,6 +39,7 @@ ETSY_WEBHOOK_CALLBACK_URL=https://your-domain.com/api/etsy/webhooks/order-paid
 ETSY_WEBHOOK_SIGNING_SECRET=...
 ETSY_API_BASE_URL=https://api.etsy.com/v3
 ETSY_DIGITAL_SALE_MESSAGE_TEMPLATE="Thanks for your order! Upload your pet photo here: {{UPLOAD_URL}}"
+ETSY_DELIVERY_MESSAGE_TEMPLATE="Your portrait is ready. Open it here: {{DELIVERY_URL}}"
 ```
 
 ## Local development
@@ -67,9 +68,9 @@ npm run seed:demo
 ## Notes
 
 - Storage is persisted in the database for the hosted demo flow, avoiding Vercel filesystem write errors.
-- Delivery is portal-first in v1. Buyers upload through the portal and return to a secure download link after approval.
+- Delivery stays on the same tokenized customer page in v1. Buyers upload, wait in review state, then save the final portrait from that same link after approval.
 - If `OPENAI_API_KEY` is set, uploaded pet photos are transformed into a stylized portrait with OpenAI before the app adds the buyer-facing layout and export formats. Without that key, the app falls back to the simpler local stylizer.
-- Etsy conversation follow-up remains manual in v1; reminder jobs create internal dashboard alerts instead of sending thread replies.
+- Approval marks the order delivered and logs a manual Etsy messaging reminder with a prebuilt delivery message.
 - Etsy OAuth uses the documented PKCE flow and stores the seller token pair in the database.
 - The webhook route expects Etsy-style `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers and fetches the receipt resource from Etsy before creating the order.
 - The pilot is intentionally limited to `ETSY_PILOT_LISTING_ID`; non-pilot receipts are captured and flagged for manual handling.

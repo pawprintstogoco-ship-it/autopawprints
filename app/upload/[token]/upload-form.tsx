@@ -53,7 +53,7 @@ export function UploadForm({ token }: { token: string }) {
         if (request.status >= 200 && request.status < 400) {
           setUploadProgress(100);
           setIsSubmitting(false);
-          router.replace(`/upload/${token}?success=1`);
+          router.replace(`/upload/${token}`);
           router.refresh();
           finish();
           return;

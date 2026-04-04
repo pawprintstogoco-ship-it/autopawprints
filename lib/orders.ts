@@ -6,7 +6,7 @@ import {
   RenderJobStatus
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { enqueueDelivery, enqueueRenderJob } from "@/lib/queue";
+import { enqueueRenderJob } from "@/lib/queue";
 import { buildDigitalSaleMessage } from "@/lib/etsy";
 import { analyzeImage, renderPortrait } from "@/lib/render";
 import { scheduleMissingPhotoReminders } from "@/lib/reminders";
@@ -393,11 +393,11 @@ export async function getOrderByUploadToken(token: string) {
     Array<{
       id: string;
       buyerName: string;
+      receiptId: string;
       status: OrderStatus;
-      downloadToken: string | null;
     }>
   >`
-    SELECT "id", "buyerName", "status", "downloadToken"
+    SELECT "id", "buyerName", "receiptId", "status"
     FROM "Order"
     WHERE "uploadToken" = ${token}
       AND "uploadTokenExpiresAt" > NOW()
@@ -414,18 +414,35 @@ export async function getOrderByUploadToken(token: string) {
     Array<{
       id: string;
       petName: string;
+      createdAt: Date;
     }>
   >`
-    SELECT "id", "petName"
+    SELECT "id", "petName", "createdAt"
     FROM "CustomerUpload"
     WHERE "orderId" = ${order.id}
     ORDER BY "createdAt" DESC
     LIMIT 1
   `;
 
+  const finalArtifacts = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      storageKey: string;
+      createdAt: Date;
+    }>
+  >`
+    SELECT "id", "storageKey", "createdAt"
+    FROM "Artifact"
+    WHERE "orderId" = ${order.id}
+      AND "kind" = 'FINAL_PNG'
+    ORDER BY "version" DESC, "createdAt" DESC
+    LIMIT 1
+  `;
+
   return {
     ...order,
-    uploads
+    uploads,
+    finalArtifacts
   };
 }
 
@@ -639,45 +656,85 @@ export async function processRenderJob(renderJobId: string) {
 }
 
 export async function approveOrder(orderId: string) {
-  const { DELIVERY_LINK_TTL_HOURS, APP_URL } = requireEnv();
-  const token = createToken();
-  const expiresAt = new Date(Date.now() + DELIVERY_LINK_TTL_HOURS * 60 * 60 * 1000);
-
-  const order = await prisma.order.update({
+  const { APP_URL } = requireEnv();
+  const deliveryTtlHours = 24 * 7;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + deliveryTtlHours * 60 * 60 * 1000);
+  const order = await prisma.order.findUnique({
     where: {
       id: orderId
     },
+    select: {
+      id: true,
+      receiptId: true,
+      buyerEmail: true,
+      uploadToken: true
+    }
+  });
+
+  if (!order) {
+    throw new Error("Order not found");
+  }
+
+  const finalArtifact = await prisma.artifact.findFirst({
+    where: {
+      orderId: order.id,
+      kind: ArtifactKind.FINAL_PNG
+    },
+    orderBy: {
+      createdAt: "desc"
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (!finalArtifact) {
+    throw new Error("Cannot approve before a final portrait is generated");
+  }
+
+  const deliveryUrl = `${APP_URL}/upload/${order.uploadToken}`;
+
+  return prisma.order.update({
+    where: {
+      id: order.id
+    },
     data: {
-      status: OrderStatus.APPROVED,
-      approvedAt: new Date(),
-      downloadToken: token,
-      downloadTokenExpiresAt: expiresAt,
-      auditLog: {
+      status: OrderStatus.DELIVERED,
+      approvedAt: now,
+      deliveredAt: now,
+      uploadTokenExpiresAt: expiresAt,
+      downloadToken: null,
+      downloadTokenExpiresAt: null,
+      deliveryEvents: {
         create: {
-          action: "approval.granted"
+          status: DeliveryStatus.SENT,
+          deliveryUrl,
+          email: order.buyerEmail
         }
+      },
+      messageEvents: {
+        create: {
+          channel: MessageChannel.INTERNAL,
+          eventType: "delivery.manual_message_required",
+          body: `Send Etsy message manually with this delivery link: ${deliveryUrl}`
+        }
+      },
+      auditLog: {
+        create: [
+          {
+            action: "approval.granted"
+          },
+          {
+            action: "delivery.sent",
+            metadata: {
+              deliveryUrl
+            }
+          }
+        ]
       }
     }
   });
-
-  const deliveryUrl = `${APP_URL}/download/${token}`;
-
-  await prisma.deliveryEvent.create({
-    data: {
-      orderId,
-      status: DeliveryStatus.PENDING,
-      deliveryUrl,
-      email: order.buyerEmail
-    }
-  });
-
-  if (shouldRunInlineJobs()) {
-    await deliverApprovedOrder(orderId);
-  } else {
-    await enqueueDelivery(orderId);
-  }
-
-  return order;
 }
 
 export async function markNeedsManualAttention(orderId: string, reason: string) {
