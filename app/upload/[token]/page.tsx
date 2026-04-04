@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { OrderStatus } from "@prisma/client";
 import { UploadForm } from "@/app/upload/[token]/upload-form";
 import { getOrderByUploadToken } from "@/lib/orders";
-import { getPublicFileUrl } from "@/lib/storage";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -39,7 +38,7 @@ export default async function UploadPage({
   const hasUploadedPhoto = order.uploads.length > 0;
   const finalArtifact = order.finalArtifacts[0] ?? null;
   const isDelivered = order.status === OrderStatus.DELIVERED && Boolean(finalArtifact);
-  const finalImageUrl = finalArtifact ? getPublicFileUrl(finalArtifact.storageKey) : null;
+  const finalImageUrl = isDelivered ? `/api/files/final/${token}` : null;
   const accentCopy = isDelivered
     ? "Your portrait is finished and ready for delivery."
     : hasUploadedPhoto

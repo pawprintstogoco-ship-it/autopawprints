@@ -33,6 +33,12 @@ export async function GET(
       }
     });
   } catch {
-    return NextResponse.json({ error: "File not found" }, { status: 404 });
+    return new NextResponse("File not found", {
+      status: 404,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store"
+      }
+    });
   }
 }

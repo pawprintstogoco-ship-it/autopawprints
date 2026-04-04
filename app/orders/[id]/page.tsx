@@ -39,10 +39,10 @@ export default async function OrderDetailPage({
   const preview = order.artifacts.find((artifact) => artifact.kind === "PREVIEW");
   const initialUrl = `${origin}/upload/${order.uploadToken}`;
   const initialMessage = `Thank you for your order. Please upload your pet's photo here so this helps the artist draw the details accurately:\n${initialUrl}`;
-  const latestFinalArtifact = order.artifacts.find((artifact) => artifact.kind === "FINAL_PNG");
+  const readyImageUrl = `${origin}/api/files/final/${order.uploadToken}`;
   const deliveryUrl =
-    order.status === OrderStatus.DELIVERED && latestFinalArtifact
-      ? `${origin}${getPublicFileUrl(latestFinalArtifact.storageKey)}`
+    order.status === OrderStatus.DELIVERED
+      ? readyImageUrl
       : undefined;
   const deliveryMessage = deliveryUrl
     ? `Your portrait is ready. Save your final PNG here:\n${deliveryUrl}`
