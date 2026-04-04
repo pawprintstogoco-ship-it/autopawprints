@@ -87,7 +87,7 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
 
   const portrait = await sharp(trimmedPortraitBase)
     .resize(artWidth, artHeight, {
-      fit: "cover",
+      fit: "contain",
       position: "attention",
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
@@ -99,6 +99,11 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
     .normalise()
     .png()
     .toBuffer();
+  const portraitMetadata = await sharp(portrait).metadata();
+  const portraitWidth = portraitMetadata.width ?? artWidth;
+  const portraitHeight = portraitMetadata.height ?? artHeight;
+  const portraitLeft = artLeft + Math.round((artWidth - portraitWidth) / 2);
+  const portraitTop = artTop + Math.max(0, artHeight - portraitHeight);
 
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
@@ -131,7 +136,7 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
   })
     .composite([
       { input: posterBackground },
-      { input: portrait, left: artLeft, top: artTop },
+      { input: portrait, left: portraitLeft, top: portraitTop },
       { input: titleSafeBand },
       {
         input: firstLineOverlay.buffer,
