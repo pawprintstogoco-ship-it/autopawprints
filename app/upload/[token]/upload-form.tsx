@@ -218,15 +218,7 @@ export function UploadForm({ token }: { token: string }) {
         </div>
       </AnimatedBlock>
 
-      <AnimatedBlock delay={0.22} className="uploadPosterPreview">
-        <PosterPreview
-          petName={petNamePreview}
-          fontStyle={selectedFontStyle}
-          backgroundStyle={selectedBackgroundStyle}
-        />
-      </AnimatedBlock>
-
-      <AnimatedBlock delay={0.26} className="uploadField">
+      <AnimatedBlock delay={0.22} className="uploadField">
         <span className="uploadFieldLabel">New photo</span>
         <input
           id={photoInputId}
@@ -246,6 +238,14 @@ export function UploadForm({ token }: { token: string }) {
             JPG, PNG, WEBP, or HEIC under 15 MB. Choose the clearest photo you have.
           </span>
         </label>
+      </AnimatedBlock>
+
+      <AnimatedBlock delay={0.26} className="uploadPosterPreview">
+        <PosterPreview
+          petName={petNamePreview}
+          fontStyle={selectedFontStyle}
+          backgroundStyle={selectedBackgroundStyle}
+        />
       </AnimatedBlock>
 
       <AnimatePresence initial={false}>
