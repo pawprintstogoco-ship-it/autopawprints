@@ -42,7 +42,7 @@ export default async function UploadPage({
   const accentCopy = isDelivered
     ? "Your portrait is finished and ready for delivery."
     : hasUploadedPhoto
-    ? "Photo received. Your artist is now working on the portrait. Expect to hear back from us within 24 hours."
+    ? ""
     : "A clear photo with good lighting helps the artist draw accurate details.";
 
   return (
@@ -91,18 +91,14 @@ export default async function UploadPage({
                 <div className="uploadSuccessBanner" role="status">
                   Portrait complete. Your delivery is ready for download.
                 </div>
-              ) : hasUploadedPhoto ? (
-                <div className="uploadSuccessBanner" role="status">
-                  Photo received. Your portrait is now under artist review. Expect to hear back from us within 24 hours.
-                </div>
               ) : null}
 
               <div className="uploadSectionHeader">
                 <div>
-                  <div className="eyebrow">Upload details</div>
+                  {hasUploadedPhoto || isDelivered ? null : <div className="eyebrow">Upload details</div>}
                   <h2>Upload portrait reference</h2>
                 </div>
-                <p>{accentCopy}</p>
+                {accentCopy ? <p>{accentCopy}</p> : null}
               </div>
 
               {isDelivered && finalImageUrl ? (

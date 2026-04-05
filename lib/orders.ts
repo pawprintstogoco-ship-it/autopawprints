@@ -671,7 +671,8 @@ export async function storeCustomerUpload({
   backgroundStyle,
   originalName,
   mimeType,
-  fileBuffer
+  fileBuffer,
+  deferInlineProcessing = false
 }: {
   orderId: string;
   petName: string;
@@ -681,6 +682,7 @@ export async function storeCustomerUpload({
   originalName: string;
   mimeType: string;
   fileBuffer: Buffer;
+  deferInlineProcessing?: boolean;
 }) {
   const orderRecord = await prisma.order.findUnique({
     where: {
@@ -768,14 +770,30 @@ export async function storeCustomerUpload({
   });
 
   if (result.renderJob) {
-    if (shouldRunInlineJobs()) {
+    const shouldProcessInline = shouldRunInlineJobs();
+
+    if (deferInlineProcessing && shouldProcessInline) {
+      return {
+        upload: result.upload,
+        order: result.order,
+        renderJob: result.renderJob,
+        processingDeferred: true
+      };
+    }
+
+    if (shouldProcessInline) {
       await processRenderJob(result.renderJob.id);
     } else {
       await enqueueRenderJob(result.renderJob.id);
     }
   }
 
-  return { upload: result.upload, order: result.order };
+  return {
+    upload: result.upload,
+    order: result.order,
+    renderJob: result.renderJob,
+    processingDeferred: false
+  };
 }
 
 export async function processRenderJob(renderJobId: string) {
