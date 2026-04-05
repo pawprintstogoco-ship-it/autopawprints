@@ -63,8 +63,17 @@ export async function POST(
       fileBuffer: Buffer.from(await photo.arrayBuffer())
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload failed";
+    const normalized = message.toLowerCase();
+    const humanFriendlyMessage =
+      normalized.includes("unsupported image format") || normalized.includes("unsupported")
+        ? "Only JPG, PNG, WEBP, or HEIC images are supported."
+        : normalized.includes("too large")
+        ? "Photo is too large. Please upload an image under 15 MB."
+        : "We couldn't upload that photo. Please try again with a clear JPG, PNG, WEBP, or HEIC image.";
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Upload failed" },
+      { error: humanFriendlyMessage },
       { status: 400 }
     );
   }

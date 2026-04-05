@@ -42,7 +42,7 @@ export default async function UploadPage({
   const accentCopy = isDelivered
     ? "Your portrait is finished and ready for delivery."
     : hasUploadedPhoto
-    ? "Photo received. Your artist is now working on the portrait."
+    ? "Photo received. Your artist is now working on the portrait. Expect to hear back from us within 24 hours."
     : "A clear photo with good lighting helps the artist draw accurate details.";
 
   return (
@@ -93,7 +93,7 @@ export default async function UploadPage({
                 </div>
               ) : hasUploadedPhoto ? (
                 <div className="uploadSuccessBanner" role="status">
-                  Photo received. Your portrait is now under artist review.
+                  Photo received. Your portrait is now under artist review. Expect to hear back from us within 24 hours.
                 </div>
               ) : null}
 
@@ -117,7 +117,7 @@ export default async function UploadPage({
               ) : hasUploadedPhoto ? (
                 <div className="uploadLockedMessage">
                   Upload is complete for this order. The artist is currently working on your
-                  portrait.
+                  portrait, and you can expect to hear back from us within 24 hours.
                 </div>
               ) : (
                 <UploadForm token={token} />
@@ -157,7 +157,8 @@ export default async function UploadPage({
                     <h3>Under review</h3>
                     <p>
                       Our artist is now working on your pet portrait. We&apos;ll update this page
-                      when the review step is complete.
+                      when the review step is complete, and you can expect to hear back from us
+                      within 24 hours.
                     </p>
                   </>
                 ) : (
