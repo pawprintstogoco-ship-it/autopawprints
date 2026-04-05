@@ -14,9 +14,17 @@ export async function GET(request: Request) {
     await exchangeEtsyAuthorizationCode({ code, state });
     return NextResponse.redirect(new URL("/etsy?connected=1", request.url));
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Etsy OAuth failed";
+    const normalized = message.toLowerCase();
+    const status =
+      normalized.includes("invalid etsy oauth state") ||
+      normalized.includes("missing etsy oauth code or state")
+        ? 400
+        : 500;
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Etsy OAuth failed" },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }
