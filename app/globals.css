@@ -38,7 +38,7 @@ body {
   color: var(--ink);
   background:
     radial-gradient(circle at top left, rgba(191, 123, 67, 0.15), transparent 30%),
-    linear-gradient(180deg, #f7f1e8 0%, #f0e4d4 100%);
+    linear-gradient(180deg, #FFF9F5 0%, #f3e9df 100%);
   font-family: var(--font-body), sans-serif;
 }
 
