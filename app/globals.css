@@ -10,6 +10,20 @@
   --warning: #a96d1f;
   --danger: #a3483f;
   --shadow: 0 24px 80px rgba(65, 45, 29, 0.12);
+  --font-poster-title: "PawprintsPosterTitle";
+  --font-poster-script: "PawprintsPosterScript";
+}
+
+@font-face {
+  font-family: "PawprintsPosterTitle";
+  src: url("/fonts/title.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "PawprintsPosterScript";
+  src: url("/fonts/script.ttf") format("truetype");
+  font-display: swap;
 }
 
 * {
@@ -592,7 +606,7 @@ select {
 .uploadPortraitBody h3,
 .uploadGuidanceTitle {
   margin: 0;
-  font-family: var(--font-body), sans-serif;
+  font-family: var(--font-poster-title), var(--font-display), serif;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #3c291d;
@@ -740,6 +754,197 @@ select {
 .uploadField {
   display: grid;
   gap: 10px;
+}
+
+.uploadStyleGrid,
+.uploadColourGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.uploadStyleGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.uploadColourGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.uploadStyleCard {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(99, 67, 46, 0.08);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.uploadStyleCard:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.uploadStyleCard.isSelected {
+  box-shadow:
+    inset 0 0 0 2px rgba(111, 75, 53, 0.42),
+    0 14px 28px rgba(90, 59, 40, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.uploadStyleInput {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+
+.uploadStyleCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.uploadStyleName {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #443024;
+}
+
+.uploadStyleDescription {
+  color: #806a57;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.uploadFontPreview {
+  display: block;
+  min-height: 2.8rem;
+  font-size: clamp(1.8rem, 3vw, 2.3rem);
+  line-height: 1;
+}
+
+.uploadColourCard {
+  justify-items: start;
+}
+
+.uploadColourSwatch {
+  width: 100%;
+  height: 58px;
+  border-radius: 18px;
+  border: 1px solid transparent;
+}
+
+.uploadPosterPreview {
+  display: grid;
+}
+
+.uploadPreviewCard {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(99, 67, 46, 0.08);
+}
+
+.uploadPreviewMeta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  color: #6c5745;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.uploadPosterMockupWrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.uploadPosterMockupShadow {
+  position: absolute;
+  inset: auto 12% 2%;
+  height: 12%;
+  border-radius: 999px;
+  background: rgba(82, 60, 44, 0.14);
+  filter: blur(18px);
+}
+
+.uploadPosterMockup {
+  position: relative;
+  width: min(100%, 330px);
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 10px solid rgba(255, 255, 255, 0.82);
+  background: var(--poster-bg);
+  box-shadow:
+    0 28px 48px rgba(64, 45, 29, 0.16),
+    inset 0 0 0 1px rgba(86, 63, 47, 0.08);
+}
+
+.uploadPosterName {
+  position: absolute;
+  top: 11%;
+  left: 10%;
+  right: 10%;
+  color: var(--poster-title);
+  font-size: clamp(1.8rem, 4vw, 2.55rem);
+  line-height: 0.96;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.uploadPosterMockup--site .uploadPosterName {
+  letter-spacing: 0.08em;
+}
+
+.uploadPosterMockup--script .uploadPosterName {
+  font-size: clamp(2.15rem, 5vw, 3rem);
+  letter-spacing: 0;
+}
+
+.uploadPosterBust {
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  bottom: -4%;
+  height: 62%;
+  display: grid;
+  place-items: end center;
+}
+
+.uploadPosterBustGlow {
+  position: absolute;
+  inset: 11% 8% 14%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+  opacity: 0.75;
+}
+
+.uploadPosterBustShape {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 4px solid rgba(78, 57, 42, 0.86);
+  border-bottom-width: 0;
+  border-radius: 48% 48% 18% 18% / 34% 34% 8% 8%;
+  background:
+    radial-gradient(circle at 50% 14%, rgba(255, 255, 255, 0.28), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(78, 57, 42, 0.02));
 }
 
 .uploadFieldLabel {
@@ -1166,6 +1371,11 @@ select {
     min-height: 30px;
     font-size: 0.76rem;
     padding: 0 10px;
+  }
+
+  .uploadStyleGrid,
+  .uploadColourGrid {
+    grid-template-columns: 1fr;
   }
 
   .uploadPortraitFrame {

@@ -47,6 +47,20 @@ enum MessageChannel {
   INTERNAL
 }
 
+enum PosterFontStyle {
+  SITE
+  SCRIPT
+}
+
+enum PosterBackgroundStyle {
+  OFF_WHITE
+  SAGE
+  SKY
+  SLATE
+  BEIGE
+  PINK
+}
+
 model Order {
   id                    String           @id @default(cuid())
   shopId                String
@@ -98,6 +112,8 @@ model CustomerUpload {
   orderId      String
   petName      String
   notes        String?
+  fontStyle    PosterFontStyle       @default(SITE)
+  backgroundStyle PosterBackgroundStyle @default(OFF_WHITE)
   originalName String
   mimeType     String
   storageKey   String

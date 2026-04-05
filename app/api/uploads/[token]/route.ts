@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getOrderByUploadToken, storeCustomerUpload } from "@/lib/orders";
+import {
+  parsePosterBackgroundStyle,
+  parsePosterFontStyle
+} from "@/lib/poster-styles";
 import { MAX_UPLOAD_BYTES, isAllowedUploadMimeType } from "@/lib/uploads";
 
 export async function POST(
@@ -54,10 +58,15 @@ export async function POST(
   }
 
   try {
+    const fontStyle = parsePosterFontStyle(formData.get("fontStyle"));
+    const backgroundStyle = parsePosterBackgroundStyle(formData.get("backgroundStyle"));
+
     await storeCustomerUpload({
       orderId: order.id,
       petName,
       notes,
+      fontStyle,
+      backgroundStyle,
       originalName: photo.name,
       mimeType: photo.type,
       fileBuffer: Buffer.from(await photo.arrayBuffer())

@@ -13,6 +13,10 @@ function buildFallbackSvg(label: string) {
   `);
 }
 
+function toBody(buffer: Buffer) {
+  return new Uint8Array(buffer);
+}
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
@@ -33,7 +37,7 @@ export async function GET(
   try {
     const file = await getBuffer(upload.storageKey);
     const preview = await buildSafeImagePreview(file);
-    return new NextResponse(preview, {
+    return new NextResponse(toBody(preview), {
       headers: {
         "content-type": "image/png",
         "cache-control": "private, no-store",
@@ -41,7 +45,7 @@ export async function GET(
       }
     });
   } catch {
-    return new NextResponse(buildFallbackSvg(`Upload for ${upload.petName}`), {
+    return new NextResponse(toBody(buildFallbackSvg(`Upload for ${upload.petName}`)), {
       headers: {
         "content-type": "image/svg+xml",
         "cache-control": "private, no-store",

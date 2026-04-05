@@ -10,6 +10,7 @@ beforeEach(() => {
   process.env.ADMIN_EMAIL = "owner@pawprintsca.com";
   process.env.ADMIN_PASSWORD = "password123";
   process.env.SESSION_SECRET = "12345678901234567890";
+  process.env.OPENAI_API_KEY = "test-key";
   process.env.STORAGE_ROOT = "./storage";
   process.env.SMTP_HOST = "smtp.example.com";
   process.env.SMTP_PORT = "587";

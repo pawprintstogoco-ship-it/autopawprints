@@ -13,6 +13,10 @@ function buildFallbackSvg(label: string) {
   `);
 }
 
+function toBody(buffer: Buffer) {
+  return new Uint8Array(buffer);
+}
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
@@ -33,7 +37,7 @@ export async function GET(
   try {
     const file = await getBuffer(artifact.storageKey);
     const preview = await buildSafeImagePreview(file);
-    return new NextResponse(preview, {
+    return new NextResponse(toBody(preview), {
       headers: {
         "content-type": "image/png",
         "cache-control": "private, no-store",
@@ -54,7 +58,7 @@ export async function GET(
       try {
         const uploadBuffer = await getBuffer(latestUpload.storageKey);
         const preview = await buildSafeImagePreview(uploadBuffer);
-        return new NextResponse(preview, {
+        return new NextResponse(toBody(preview), {
           headers: {
             "content-type": "image/png",
             "cache-control": "private, no-store",
@@ -66,7 +70,7 @@ export async function GET(
       }
     }
 
-    return new NextResponse(buildFallbackSvg(`Missing ${artifact.kind.replaceAll("_", " ")}`), {
+    return new NextResponse(toBody(buildFallbackSvg(`Missing ${artifact.kind.replaceAll("_", " ")}`)), {
       headers: {
         "content-type": "image/svg+xml",
         "cache-control": "private, no-store",

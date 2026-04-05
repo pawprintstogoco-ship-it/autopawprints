@@ -6,6 +6,14 @@ import {
   RenderJobStatus
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  posterBackgroundStyleFromDb,
+  posterBackgroundStyleToDb,
+  posterFontStyleFromDb,
+  posterFontStyleToDb,
+  type PosterBackgroundStyle,
+  type PosterFontStyle
+} from "@/lib/poster-styles";
 import { enqueueRenderJob } from "@/lib/queue";
 import { buildDigitalSaleMessage } from "@/lib/etsy";
 import { analyzeImage, renderPortrait } from "@/lib/render";
@@ -659,6 +667,8 @@ export async function storeCustomerUpload({
   orderId,
   petName,
   notes,
+  fontStyle,
+  backgroundStyle,
   originalName,
   mimeType,
   fileBuffer
@@ -666,6 +676,8 @@ export async function storeCustomerUpload({
   orderId: string;
   petName: string;
   notes?: string;
+  fontStyle: PosterFontStyle;
+  backgroundStyle: PosterBackgroundStyle;
   originalName: string;
   mimeType: string;
   fileBuffer: Buffer;
@@ -711,6 +723,8 @@ export async function storeCustomerUpload({
         orderId,
         petName,
         notes,
+        fontStyle: posterFontStyleToDb(fontStyle),
+        backgroundStyle: posterBackgroundStyleToDb(backgroundStyle),
         originalName,
         mimeType,
         storageKey,
@@ -807,6 +821,8 @@ export async function processRenderJob(renderJobId: string) {
     const output = await renderPortrait({
       source,
       petName: upload.petName,
+      fontStyle: posterFontStyleFromDb(upload.fontStyle),
+      backgroundStyle: posterBackgroundStyleFromDb(upload.backgroundStyle),
       orderId: order.id,
       version
     });

@@ -1,8 +1,18 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChangeEvent, FormEvent, useId, useState } from "react";
+import { ChangeEvent, FormEvent, useId, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import {
+  DEFAULT_POSTER_BACKGROUND_STYLE,
+  DEFAULT_POSTER_FONT_STYLE,
+  getPosterBackgroundOption,
+  getPosterFontOption,
+  POSTER_BACKGROUND_OPTIONS,
+  POSTER_FONT_OPTIONS,
+  type PosterBackgroundStyle,
+  type PosterFontStyle
+} from "@/lib/poster-styles";
 
 export function UploadForm({ token }: { token: string }) {
   const router = useRouter();
@@ -12,6 +22,11 @@ export function UploadForm({ token }: { token: string }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
+  const [petNamePreview, setPetNamePreview] = useState("");
+  const [selectedFontStyle, setSelectedFontStyle] =
+    useState<PosterFontStyle>(DEFAULT_POSTER_FONT_STYLE);
+  const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
+    useState<PosterBackgroundStyle>(DEFAULT_POSTER_BACKGROUND_STYLE);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -131,11 +146,86 @@ export function UploadForm({ token }: { token: string }) {
           type="text"
           name="petName"
           placeholder="Enter pet name"
+          onChange={(event) => setPetNamePreview(event.target.value)}
           required
         />
       </AnimatedBlock>
 
       <AnimatedBlock delay={0.14} className="uploadField">
+        <span className="uploadFieldLabel">Font style</span>
+        <div className="uploadStyleGrid" role="radiogroup" aria-label="Font style">
+          {POSTER_FONT_OPTIONS.map((option) => {
+            const checked = selectedFontStyle === option.id;
+            return (
+              <label
+                key={option.id}
+                className={`uploadStyleCard uploadFontCard${checked ? " isSelected" : ""}`}
+              >
+                <input
+                  className="uploadStyleInput"
+                  type="radio"
+                  name="fontStyle"
+                  value={option.id}
+                  checked={checked}
+                  onChange={() => setSelectedFontStyle(option.id)}
+                />
+                <span className="uploadStyleCardHeader">
+                  <span className="uploadStyleName">{option.label}</span>
+                </span>
+                <span
+                  className="uploadFontPreview"
+                  style={{
+                    fontFamily: option.previewFamily,
+                    color: option.previewColor
+                  }}
+                >
+                  Bella
+                </span>
+                <span className="uploadStyleDescription">{option.description}</span>
+              </label>
+            );
+          })}
+        </div>
+      </AnimatedBlock>
+
+      <AnimatedBlock delay={0.18} className="uploadField">
+        <span className="uploadFieldLabel">Background colour</span>
+        <div className="uploadColourGrid" role="radiogroup" aria-label="Background colour">
+          {POSTER_BACKGROUND_OPTIONS.map((option) => {
+            const checked = selectedBackgroundStyle === option.id;
+            return (
+              <label
+                key={option.id}
+                className={`uploadStyleCard uploadColourCard${checked ? " isSelected" : ""}`}
+              >
+                <input
+                  className="uploadStyleInput"
+                  type="radio"
+                  name="backgroundStyle"
+                  value={option.id}
+                  checked={checked}
+                  onChange={() => setSelectedBackgroundStyle(option.id)}
+                />
+                <span
+                  className="uploadColourSwatch"
+                  style={{ backgroundColor: option.fill, borderColor: option.accent }}
+                />
+                <span className="uploadStyleName">{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </AnimatedBlock>
+
+      <AnimatedBlock delay={0.22} className="uploadPosterPreview">
+        <PosterPreview
+          petName={petNamePreview}
+          fontStyle={selectedFontStyle}
+          backgroundStyle={selectedBackgroundStyle}
+        />
+      </AnimatedBlock>
+
+      <AnimatedBlock delay={0.26} className="uploadField">
         <span className="uploadFieldLabel">New photo</span>
         <input
           id={photoInputId}
@@ -196,7 +286,7 @@ export function UploadForm({ token }: { token: string }) {
         ) : null}
       </AnimatePresence>
 
-      <AnimatedBlock delay={0.26} className="uploadSubmitDock">
+      <AnimatedBlock delay={0.3} className="uploadSubmitDock">
         <motion.button
           className="uploadSubmitButton"
           type="submit"
@@ -217,6 +307,54 @@ export function UploadForm({ token }: { token: string }) {
       </motion.button>
       </AnimatedBlock>
     </motion.form>
+  );
+}
+
+function PosterPreview({
+  petName,
+  fontStyle,
+  backgroundStyle
+}: {
+  petName?: string;
+  fontStyle: PosterFontStyle;
+  backgroundStyle: PosterBackgroundStyle;
+}) {
+  const background = getPosterBackgroundOption(backgroundStyle);
+  const font = getPosterFontOption(fontStyle);
+  const name = petName?.trim() || "Pet Name";
+
+  return (
+    <div className="uploadPreviewCard">
+      <div className="uploadPreviewMeta">
+        <span>Live poster preview</span>
+        <span>
+          {font.label} + {background.label}
+        </span>
+      </div>
+
+      <div className="uploadPosterMockupWrap">
+        <div className="uploadPosterMockupShadow" aria-hidden="true" />
+        <div
+          className={`uploadPosterMockup uploadPosterMockup--${fontStyle}`}
+          style={
+            {
+              "--poster-bg": background.fill,
+              "--poster-accent": background.accent,
+              "--poster-title": font.previewColor,
+              "--poster-font": font.previewFamily
+            } as CSSProperties
+          }
+        >
+          <div className="uploadPosterName" style={{ fontFamily: font.previewFamily }}>
+            {fontStyle === "site" ? name.toUpperCase() : name}
+          </div>
+          <div className="uploadPosterBust" aria-hidden="true">
+            <div className="uploadPosterBustGlow" />
+            <div className="uploadPosterBustShape" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

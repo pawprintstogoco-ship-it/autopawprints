@@ -1,11 +1,19 @@
 import path from "node:path";
 import sharp from "sharp";
 import { requireEnv } from "@/lib/env";
+import {
+  getPosterBackgroundOption,
+  getPosterFontOption,
+  type PosterBackgroundStyle,
+  type PosterFontStyle
+} from "@/lib/poster-styles";
 import { putBuffer } from "@/lib/storage";
 
 type RenderInput = {
   source: Buffer;
   petName: string;
+  fontStyle: PosterFontStyle;
+  backgroundStyle: PosterBackgroundStyle;
   orderId: string;
   version: number;
 };
@@ -20,7 +28,7 @@ export type RenderOutput = {
 
 const FINAL_WIDTH = 1800;
 const FINAL_HEIGHT = 2400;
-const TITLE_SAFE_HEIGHT = 430;
+const TITLE_SAFE_HEIGHT = 700;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -38,12 +46,17 @@ export async function analyzeImage(source: Buffer) {
 export async function renderPortrait({
   source,
   petName,
+  fontStyle,
+  backgroundStyle,
   orderId,
   version
 }: RenderInput): Promise<RenderOutput> {
   const { blurScore, width, height } = await analyzeImage(source);
   const portraitBase = await createPortraitBase(source, petName);
-  const finalPngBuffer = await buildPosterPng(portraitBase, petName);
+  const finalPngBuffer = await buildPosterPng(portraitBase, petName, {
+    fontStyle,
+    backgroundStyle
+  });
   const previewBuffer = await sharp(finalPngBuffer)
     .resize(1080, 1440, {
       fit: "inside"
@@ -71,12 +84,24 @@ export async function renderPortrait({
   };
 }
 
-async function buildPosterPng(portraitBase: Buffer, petName: string) {
-  const artWidth = 1500;
-  const artHeight = 2280;
+async function buildPosterPng(
+  portraitBase: Buffer,
+  petName: string,
+  {
+    fontStyle,
+    backgroundStyle
+  }: {
+    fontStyle: PosterFontStyle;
+    backgroundStyle: PosterBackgroundStyle;
+  }
+) {
+  const artWidth = 1460;
+  const artHeight = 1660;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 460;
-  const title = buildTitleLayout(petName);
+  const artTop = 650;
+  const title = buildTitleLayout(petName, fontStyle);
+  const background = getPosterBackgroundOption(backgroundStyle);
+  const titleFont = getPosterFontOption(fontStyle);
 
   const trimmedPortraitBase = await sharp(portraitBase)
     .trim({
@@ -114,23 +139,32 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
 
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#ffffff"/>
+      <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="${background.fill}"/>
     </svg>
   `);
 
   const titleSafeBand = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${FINAL_WIDTH}" height="${TITLE_SAFE_HEIGHT}" fill="#ffffff"/>
+      <rect width="${FINAL_WIDTH}" height="${TITLE_SAFE_HEIGHT}" fill="${background.fill}"/>
     </svg>
   `);
   const firstLineOverlay = await createTitleTextLayer(
     title.firstLine,
     title.fontSize,
-    FINAL_WIDTH - 120,
-    title.secondLine ? 140 : 170
+    FINAL_WIDTH - 180,
+    title.secondLine ? 170 : 200,
+    titleFont.previewColor,
+    fontStyle
   );
   const secondLineOverlay = title.secondLine
-    ? await createTitleTextLayer(title.secondLine, title.secondLineFontSize, FINAL_WIDTH - 120, 140)
+    ? await createTitleTextLayer(
+        title.secondLine,
+        title.secondLineFontSize,
+        FINAL_WIDTH - 180,
+        170,
+        titleFont.previewColor,
+        fontStyle
+      )
     : null;
 
   return sharp({
@@ -138,7 +172,7 @@ async function buildPosterPng(portraitBase: Buffer, petName: string) {
       width: FINAL_WIDTH,
       height: FINAL_HEIGHT,
       channels: 4,
-      background: "#ffffff"
+      background: background.fill
     }
   })
     .composite([
@@ -346,7 +380,7 @@ async function createFallbackPortrait(source: Buffer) {
     .resize(1024, 1536, {
       fit: "contain",
       position: "attention",
-      background: "#ffffff"
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
     .modulate({ saturation: 0.88, brightness: 1.08 })
     .linear([0.95, 0.98, 1.04, 1], [4, 4, 8, 0])
@@ -355,20 +389,21 @@ async function createFallbackPortrait(source: Buffer) {
     .toBuffer();
 }
 
-function formatDisplayName(name: string) {
+function formatDisplayName(name: string, fontStyle: PosterFontStyle) {
   const trimmed = name.trim();
   if (!trimmed) {
-    return "YOUR PET";
+    return fontStyle === "script" ? "Your Pet" : "YOUR PET";
   }
 
-  return trimmed
+  const sanitized = trimmed
     .normalize("NFKD")
-    .replace(/[^\x20-\x7E]/g, "")
-    .toUpperCase();
+    .replace(/[^\x20-\x7E]/g, "");
+
+  return fontStyle === "script" ? toTitleCase(sanitized) : sanitized.toUpperCase();
 }
 
 function buildArtifactBaseName(name: string) {
-  const safeName = formatDisplayName(name)
+  const safeName = formatDisplayName(name, "site")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "") || "your_pet";
@@ -387,18 +422,26 @@ function buildArtifactBaseName(name: string) {
   return `${safeName}_${date}_${time}`;
 }
 
-function buildTitleLayout(name: string) {
-  const displayName = formatDisplayName(name);
+function buildTitleLayout(name: string, fontStyle: PosterFontStyle) {
+  const displayName = formatDisplayName(name, fontStyle);
   const words = displayName.split(/\s+/).filter(Boolean);
-  const shouldSplit = displayName.length > 12 && words.length > 1;
+  const shouldSplit =
+    words.length > 1 && displayName.length > (fontStyle === "script" ? 14 : 12);
 
   if (!shouldSplit) {
     return {
       firstLine: displayName,
       secondLine: "",
-      fontSize: displayName.length > 10 ? 132 : 152,
+      fontSize:
+        fontStyle === "script"
+          ? displayName.length > 10
+            ? 172
+            : 188
+          : displayName.length > 10
+          ? 138
+          : 156,
       secondLineFontSize: 0,
-      firstLineTop: 92,
+      firstLineTop: fontStyle === "script" ? 116 : 104,
       secondLineTop: 0
     };
   }
@@ -410,10 +453,10 @@ function buildTitleLayout(name: string) {
   return {
     firstLine,
     secondLine,
-    fontSize: 116,
-    secondLineFontSize: 116,
-    firstLineTop: 58,
-    secondLineTop: 188
+    fontSize: fontStyle === "script" ? 144 : 118,
+    secondLineFontSize: fontStyle === "script" ? 144 : 118,
+    firstLineTop: fontStyle === "script" ? 88 : 74,
+    secondLineTop: fontStyle === "script" ? 240 : 214
   };
 }
 
@@ -427,25 +470,26 @@ function escapePangoText(input: string) {
 }
 
 function getTitleFontPath() {
-  return path.join(
-    process.cwd(),
-    "assets",
-    "fonts",
-    "title.ttf"
-  );
+  return path.join(process.cwd(), "assets", "fonts", "title.ttf");
+}
+
+function getScriptFontPath() {
+  return path.join(process.cwd(), "assets", "fonts", "script.ttf");
 }
 
 async function createTitleTextLayer(
   text: string,
   fontSize: number,
   width: number,
-  height: number
+  height: number,
+  color: string,
+  fontStyle: PosterFontStyle
 ) {
   const rendered = await sharp({
     text: {
-      text: `<span foreground="#4a3727">${escapePangoText(text)}</span>`,
-      font: `Title ${fontSize}px`,
-      fontfile: getTitleFontPath(),
+      text: `<span foreground="${color}">${escapePangoText(text)}</span>`,
+      font: `${fontStyle === "script" ? "PosterScript" : "Title"} ${fontSize}px`,
+      fontfile: fontStyle === "script" ? getScriptFontPath() : getTitleFontPath(),
       width,
       height,
       align: "centre",
@@ -465,4 +509,10 @@ async function createTitleTextLayer(
     buffer: rendered,
     width: metadata.width ?? width
   };
+}
+
+function toTitleCase(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (match) => match.toUpperCase());
 }
