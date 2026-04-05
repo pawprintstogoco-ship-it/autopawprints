@@ -7,7 +7,6 @@ export default function HomePage() {
           src="/brand/pawprints-longform.svg"
           alt="PawPrints"
         />
-        <div className="eyebrow">Welcome</div>
         <h1>Welcome to Pawprints.</h1>
         <p>
           Custom pet portraits made with care. If you received an upload link, open

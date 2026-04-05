@@ -767,7 +767,7 @@ select {
 }
 
 .uploadColourGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .uploadStyleCard {
@@ -831,14 +831,29 @@ select {
 }
 
 .uploadColourCard {
-  justify-items: start;
+  justify-items: center;
+  padding: 8px;
+  border-radius: 18px;
+  gap: 0;
 }
 
 .uploadColourSwatch {
   width: 100%;
-  height: 58px;
-  border-radius: 18px;
+  aspect-ratio: 1;
+  border-radius: 14px;
   border: 1px solid transparent;
+}
+
+.uploadSrOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .uploadPosterPreview {
@@ -919,9 +934,9 @@ select {
 
 .uploadPosterBust {
   position: absolute;
-  left: 15%;
-  right: 15%;
-  bottom: -4%;
+  left: 16%;
+  right: 16%;
+  bottom: 2%;
   height: 62%;
   display: grid;
   place-items: end center;
@@ -935,16 +950,10 @@ select {
   opacity: 0.75;
 }
 
-.uploadPosterBustShape {
+.uploadPosterDog {
   position: relative;
   width: 100%;
   height: 100%;
-  border: 4px solid rgba(78, 57, 42, 0.86);
-  border-bottom-width: 0;
-  border-radius: 48% 48% 18% 18% / 34% 34% 8% 8%;
-  background:
-    radial-gradient(circle at 50% 14%, rgba(255, 255, 255, 0.28), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(78, 57, 42, 0.02));
 }
 
 .uploadFieldLabel {
@@ -1376,6 +1385,16 @@ select {
   .uploadStyleGrid,
   .uploadColourGrid {
     grid-template-columns: 1fr;
+  }
+
+  .uploadColourGrid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .uploadColourCard {
+    padding: 6px;
+    border-radius: 16px;
   }
 
   .uploadPortraitFrame {

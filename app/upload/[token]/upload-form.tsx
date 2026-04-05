@@ -209,8 +209,9 @@ export function UploadForm({ token }: { token: string }) {
                 <span
                   className="uploadColourSwatch"
                   style={{ backgroundColor: option.fill, borderColor: option.accent }}
+                  aria-hidden="true"
                 />
-                <span className="uploadStyleName">{option.label}</span>
+                <span className="uploadSrOnly">{option.label}</span>
               </label>
             );
           })}
@@ -350,7 +351,62 @@ function PosterPreview({
           </div>
           <div className="uploadPosterBust" aria-hidden="true">
             <div className="uploadPosterBustGlow" />
-            <div className="uploadPosterBustShape" />
+            <svg
+              className="uploadPosterDog"
+              viewBox="0 0 260 320"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M75 110C67 76 88 44 124 44C159 44 181 75 178 110C199 121 211 141 212 167C214 191 202 218 185 240C170 260 159 281 153 304H96C90 281 79 260 64 240C46 218 35 191 37 167C38 140 52 121 75 110Z"
+                fill="rgba(54, 40, 30, 0.1)"
+              />
+              <path
+                d="M79 112C59 97 53 69 63 47C80 56 94 74 99 98"
+                stroke="rgba(54, 40, 30, 0.88)"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M181 112C201 97 207 69 197 47C180 56 166 74 161 98"
+                stroke="rgba(54, 40, 30, 0.88)"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M83 118C80 79 101 52 130 52C159 52 180 79 177 118C199 129 211 147 212 171C213 196 202 221 184 243C168 263 157 283 151 304H109C103 283 92 263 76 243C58 221 47 196 48 171C49 147 62 129 83 118Z"
+                stroke="rgba(54, 40, 30, 0.92)"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M102 165C109 160 118 157 130 157C142 157 151 160 158 165"
+                stroke="rgba(54, 40, 30, 0.84)"
+                strokeWidth="7"
+                strokeLinecap="round"
+              />
+              <path
+                d="M118 181C122 177 126 175 130 175C134 175 138 177 142 181"
+                stroke="rgba(54, 40, 30, 0.84)"
+                strokeWidth="7"
+                strokeLinecap="round"
+              />
+              <path
+                d="M130 176V196"
+                stroke="rgba(54, 40, 30, 0.84)"
+                strokeWidth="7"
+                strokeLinecap="round"
+              />
+              <path
+                d="M105 209C114 220 121 225 130 225C139 225 146 220 155 209"
+                stroke="rgba(54, 40, 30, 0.84)"
+                strokeWidth="7"
+                strokeLinecap="round"
+              />
+            </svg>
           </div>
         </div>
       </div>

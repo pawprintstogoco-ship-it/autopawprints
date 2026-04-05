@@ -33,7 +33,7 @@ export const POSTER_FONT_OPTIONS: Array<{
     label: "Script",
     description: "A logo-inspired script with a softer signature feel.",
     previewFamily: "var(--font-poster-script), cursive",
-    previewColor: "#bf7f88"
+    previewColor: "#1f1813"
   }
 ];
 
