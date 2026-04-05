@@ -3,6 +3,7 @@ node_modules
 coverage
 dist
 storage
+.npm-cache
 .env
 .env.local
 *.log

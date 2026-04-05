@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrderByUploadToken, storeCustomerUpload } from "@/lib/orders";
+import { MAX_UPLOAD_BYTES, isAllowedUploadMimeType } from "@/lib/uploads";
 
 export async function POST(
   request: Request,
@@ -36,6 +37,20 @@ export async function POST(
 
   if (!(photo instanceof File)) {
     return NextResponse.json({ error: "Photo upload is required" }, { status: 400 });
+  }
+
+  if (!isAllowedUploadMimeType(photo.type)) {
+    return NextResponse.json(
+      { error: "Only JPG, PNG, WEBP, or HEIC images are supported" },
+      { status: 400 }
+    );
+  }
+
+  if (photo.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: "Photo is too large. Please upload an image under 15 MB." },
+      { status: 413 }
+    );
   }
 
   try {

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth";
+import { buildSafeImagePreview } from "@/lib/previews";
 import { prisma } from "@/lib/prisma";
-import { getBuffer, getMimeTypeForStorageKey } from "@/lib/storage";
+import { getBuffer } from "@/lib/storage";
 
 function buildFallbackSvg(label: string) {
   return Buffer.from(`
@@ -31,10 +32,12 @@ export async function GET(
 
   try {
     const file = await getBuffer(artifact.storageKey);
-    return new NextResponse(file, {
+    const preview = await buildSafeImagePreview(file);
+    return new NextResponse(preview, {
       headers: {
-        "content-type": getMimeTypeForStorageKey(artifact.storageKey, artifact.mimeType),
-        "cache-control": "private, max-age=60"
+        "content-type": "image/png",
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff"
       }
     });
   } catch {
@@ -50,10 +53,12 @@ export async function GET(
     if (latestUpload) {
       try {
         const uploadBuffer = await getBuffer(latestUpload.storageKey);
-        return new NextResponse(uploadBuffer, {
+        const preview = await buildSafeImagePreview(uploadBuffer);
+        return new NextResponse(preview, {
           headers: {
-            "content-type": getMimeTypeForStorageKey(latestUpload.storageKey, latestUpload.mimeType),
-            "cache-control": "private, max-age=60"
+            "content-type": "image/png",
+            "cache-control": "private, no-store",
+            "x-content-type-options": "nosniff"
           }
         });
       } catch {
@@ -64,7 +69,8 @@ export async function GET(
     return new NextResponse(buildFallbackSvg(`Missing ${artifact.kind.replaceAll("_", " ")}`), {
       headers: {
         "content-type": "image/svg+xml",
-        "cache-control": "private, max-age=60"
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff"
       }
     });
   }

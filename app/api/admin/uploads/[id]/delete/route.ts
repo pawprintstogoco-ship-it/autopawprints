@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth";
+import { getSafeRedirectPath } from "@/lib/http";
 import { deleteCustomerUploadById } from "@/lib/orders";
 
 export async function POST(
@@ -9,7 +10,7 @@ export async function POST(
   await requireAdminSession();
   const { id } = await context.params;
   const formData = await request.formData();
-  const redirectTo = String(formData.get("redirectTo") ?? "/orders/files");
+  const redirectTo = getSafeRedirectPath(formData.get("redirectTo")?.toString(), "/orders/files");
 
   await deleteCustomerUploadById(id);
 

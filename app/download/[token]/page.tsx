@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { getOrderByDownloadToken, recordDeliveryOpen } from "@/lib/orders";
-import { getPublicFileUrl } from "@/lib/storage";
 
 export default async function DownloadPage({
   params
@@ -32,9 +31,10 @@ export default async function DownloadPage({
           .filter((artifact) => artifact.kind === "FINAL_PNG")
           .map((artifact) => (
             <a
-              href={getPublicFileUrl(artifact.storageKey)}
+              href={`/api/files/final/${token}`}
               key={artifact.id}
               className="card stack"
+              download
             >
               <strong>{artifact.kind.replaceAll("_", " ")}</strong>
               <span className="muted">{artifact.mimeType}</span>

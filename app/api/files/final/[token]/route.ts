@@ -36,7 +36,9 @@ export async function GET(
     return new NextResponse(file, {
       headers: {
         "content-type": "image/png",
-        "cache-control": "private, max-age=60"
+        "cache-control": "private, no-store",
+        "content-disposition": 'attachment; filename="pawprints-portrait.png"',
+        "x-content-type-options": "nosniff"
       }
     });
   } catch {

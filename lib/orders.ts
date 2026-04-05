@@ -12,6 +12,7 @@ import { analyzeImage, renderPortrait } from "@/lib/render";
 import { scheduleMissingPhotoReminders } from "@/lib/reminders";
 import { deleteObject, getBuffer, putBuffer } from "@/lib/storage";
 import { createToken } from "@/lib/tokens";
+import { MAX_UPLOAD_BYTES, isAllowedUploadMimeType } from "@/lib/uploads";
 import { requireEnv } from "@/lib/env";
 
 type EtsyWebhookPayload = {
@@ -685,8 +686,12 @@ export async function storeCustomerUpload({
     throw new Error("Pet name is required");
   }
 
-  if (!mimeType.startsWith("image/")) {
-    throw new Error("Only image uploads are supported");
+  if (!isAllowedUploadMimeType(mimeType)) {
+    throw new Error("Only JPG, PNG, WEBP, or HEIC images are supported");
+  }
+
+  if (fileBuffer.length > MAX_UPLOAD_BYTES) {
+    throw new Error("Photo is too large. Please upload an image under 15 MB.");
   }
 
   if (imageInfo.width < 400 || imageInfo.height < 400) {

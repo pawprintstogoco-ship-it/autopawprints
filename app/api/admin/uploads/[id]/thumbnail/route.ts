@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getBuffer, getMimeTypeForStorageKey } from "@/lib/storage";
+import { buildSafeImagePreview } from "@/lib/previews";
+import { getBuffer } from "@/lib/storage";
 
 function buildFallbackSvg(label: string) {
   return Buffer.from(`
@@ -31,17 +32,20 @@ export async function GET(
 
   try {
     const file = await getBuffer(upload.storageKey);
-    return new NextResponse(file, {
+    const preview = await buildSafeImagePreview(file);
+    return new NextResponse(preview, {
       headers: {
-        "content-type": getMimeTypeForStorageKey(upload.storageKey, upload.mimeType),
-        "cache-control": "private, max-age=60"
+        "content-type": "image/png",
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff"
       }
     });
   } catch {
     return new NextResponse(buildFallbackSvg(`Upload for ${upload.petName}`), {
       headers: {
         "content-type": "image/svg+xml",
-        "cache-control": "private, max-age=60"
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff"
       }
     });
   }

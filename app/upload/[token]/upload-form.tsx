@@ -142,7 +142,7 @@ export function UploadForm({ token }: { token: string }) {
           className="uploadHiddenInput"
           type="file"
           name="photo"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           required
           onChange={handleFileChange}
         />
@@ -152,7 +152,7 @@ export function UploadForm({ token }: { token: string }) {
           </span>
           <span className="uploadDropzoneTitle">{selectedFileName || "Tap to upload"}</span>
           <span className="uploadDropzoneHint">
-            JPG, PNG, or HEIC. Choose the clearest photo you have.
+            JPG, PNG, WEBP, or HEIC under 15 MB. Choose the clearest photo you have.
           </span>
         </label>
       </AnimatedBlock>

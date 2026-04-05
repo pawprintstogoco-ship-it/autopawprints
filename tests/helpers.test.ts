@@ -118,10 +118,19 @@ describe("etsy helpers", () => {
 });
 
 describe("storage helpers", () => {
-  it("builds file URLs without collapsing path segments", async () => {
-    const { getPublicFileUrl } = await import("../lib/storage");
-    expect(getPublicFileUrl("orders/demo/final.pdf")).toBe(
-      "http://localhost:3010/api/files/orders/demo/final.pdf"
+  it("normalizes redirect targets to internal paths", async () => {
+    const { getSafeRedirectPath } = await import("../lib/http");
+    expect(getSafeRedirectPath("/orders/files?tab=recent", "/fallback")).toBe(
+      "/orders/files?tab=recent"
     );
+    expect(getSafeRedirectPath("https://evil.example/phish", "/fallback")).toBe("/fallback");
+    expect(getSafeRedirectPath("//evil.example/phish", "/fallback")).toBe("/fallback");
+  });
+
+  it("allows only safe customer upload image types", async () => {
+    const { isAllowedUploadMimeType, MAX_UPLOAD_BYTES } = await import("../lib/uploads");
+    expect(isAllowedUploadMimeType("image/png")).toBe(true);
+    expect(isAllowedUploadMimeType("image/svg+xml")).toBe(false);
+    expect(MAX_UPLOAD_BYTES).toBe(15 * 1024 * 1024);
   });
 });

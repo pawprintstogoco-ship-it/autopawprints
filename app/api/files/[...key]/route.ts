@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdminSession } from "@/lib/auth";
 import { getBuffer } from "@/lib/storage";
 
 function getContentType(key: string) {
@@ -21,6 +22,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ key: string[] }> }
 ) {
+  await requireAdminSession();
   const { key } = await context.params;
   const storageKey = key.join("/");
 
@@ -29,7 +31,8 @@ export async function GET(
     return new NextResponse(file, {
       headers: {
         "content-type": getContentType(storageKey),
-        "cache-control": "public, max-age=31536000, immutable"
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff"
       }
     });
   } catch {
