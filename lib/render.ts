@@ -95,15 +95,16 @@ async function buildPosterPng(
     backgroundStyle: PosterBackgroundStyle;
   }
 ) {
-  const artWidth = 1460;
-  const artHeight = 1660;
+  const artWidth = 1560;
+  const artHeight = 1820;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 650;
+  const artTop = 620;
   const title = buildTitleLayout(petName, fontStyle);
   const background = getPosterBackgroundOption(backgroundStyle);
   const titleFont = getPosterFontOption(fontStyle);
+  const cleanedPortraitBase = await preparePortraitForComposition(portraitBase);
 
-  const trimmedPortraitBase = await sharp(portraitBase)
+  const trimmedPortraitBase = await sharp(cleanedPortraitBase)
     .trim({
       background: { r: 0, g: 0, b: 0, alpha: 0 },
       threshold: 8
@@ -135,7 +136,7 @@ async function buildPosterPng(
   const portraitWidth = portraitMetadata.width ?? artWidth;
   const portraitHeight = portraitMetadata.height ?? artHeight;
   const portraitLeft = artLeft + Math.round((artWidth - portraitWidth) / 2);
-  const portraitTop = artTop + Math.max(0, artHeight - portraitHeight);
+  const portraitTop = Math.max(artTop, FINAL_HEIGHT - portraitHeight);
 
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
@@ -230,6 +231,7 @@ async function generateAiPortrait(source: Buffer, petName: string) {
     "prompt",
     [
       `Create a premium custom pet portrait poster illustration for a pet named ${petName}.`,
+      `Create only the pet portrait asset. The app will build the final poster layout separately.`,
       "",
       "CRITICAL - EXACT PET LIKENESS:",
       "Use the provided photo as a strict visual reference.",
@@ -259,12 +261,12 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "If a marking is visible in the source photo, it should still be visible in the final portrait.",
       "",
       "CROP / FRAMING (VERY IMPORTANT):",
-      "Create a clean portrait poster composition similar to a passport or studio portrait.",
       "The pet should be shown as a centered HEAD-AND-CHEST portrait only.",
       "Frame from just above the top of the head down to the upper chest / front shoulders.",
       "Do NOT zoom out to include the full body, legs, paws, or too much torso.",
       "The head should be large and prominent in frame, occupying most of the composition.",
       "The portrait should feel close, iconic, and symmetrical like a modern custom pet print.",
+      "Leave comfortable empty space above the head so the app can place the pet name separately.",
       "",
       "POSE:",
       "Use a calm front-facing or slight natural three-quarter angle based on the source image.",
@@ -297,10 +299,10 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "White fur should remain neutral white or soft grey-white, not cream or yellow.",
       "Brown / tan / rust markings must stay accurate to the original image.",
       "",
-      "BACKGROUND:",
-      "Use a clean solid-color poster background only.",
-      "No texture, scenery, room background, shadows on the floor, furniture, or environment.",
-      "Keep the background simple and premium, suitable for adding the pet's name later.",
+      "OUTPUT FORMAT (VERY IMPORTANT):",
+      "Return ONLY the pet portrait cutout on a transparent background.",
+      "No poster template, no frame, no border, no background block, and no blank card area.",
+      "The lower chest / fur can continue toward the bottom edge of the asset, but there must be no text or banner.",
       "",
       "STRICT NEGATIVE RULES:",
       "- no full body",
@@ -312,6 +314,12 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "- no extra animals",
       "- no accessories",
       "- no text",
+      "- no nameplate",
+      "- no pet name anywhere in the image",
+      "- no bottom label",
+      "- no caption box",
+      "- no white plaque",
+      "- no poster border",
       "- no decorative elements",
       "- no exaggerated stylization",
       "- no generic dog-face simplification",
@@ -319,11 +327,12 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "- no merging light and dark fur patches into larger simplified shapes",
       "",
       "OUTPUT GOAL:",
-      "A polished, modern, premium pet portrait poster with:",
+      "A polished, modern, premium transparent pet portrait asset with:",
       "- exact pet likeness",
       "- accurate fur color",
       "- preserved small identifying markings",
-      "- clean passport-style head-and-chest composition",
+      "- clean head-and-chest composition",
+      "- transparent background ready for local poster composition",
       "- refined Etsy-ready illustration quality"
     ].join("\n")
   );
@@ -435,13 +444,13 @@ function buildTitleLayout(name: string, fontStyle: PosterFontStyle) {
       fontSize:
         fontStyle === "script"
           ? displayName.length > 10
-            ? 172
-            : 188
+            ? 164
+            : 178
           : displayName.length > 10
-          ? 138
-          : 156,
+          ? 132
+          : 148,
       secondLineFontSize: 0,
-      firstLineTop: fontStyle === "script" ? 116 : 104,
+      firstLineTop: fontStyle === "script" ? 142 : 132,
       secondLineTop: 0
     };
   }
@@ -453,10 +462,10 @@ function buildTitleLayout(name: string, fontStyle: PosterFontStyle) {
   return {
     firstLine,
     secondLine,
-    fontSize: fontStyle === "script" ? 144 : 118,
-    secondLineFontSize: fontStyle === "script" ? 144 : 118,
-    firstLineTop: fontStyle === "script" ? 88 : 74,
-    secondLineTop: fontStyle === "script" ? 240 : 214
+    fontSize: fontStyle === "script" ? 136 : 110,
+    secondLineFontSize: fontStyle === "script" ? 136 : 110,
+    firstLineTop: fontStyle === "script" ? 116 : 104,
+    secondLineTop: fontStyle === "script" ? 254 : 228
   };
 }
 
@@ -515,4 +524,115 @@ function toTitleCase(value: string) {
   return value
     .toLowerCase()
     .replace(/\b([a-z])/g, (match) => match.toUpperCase());
+}
+
+async function preparePortraitForComposition(source: Buffer) {
+  const metadata = await sharp(source).metadata();
+  const hasTransparentAlpha = await hasTransparentPixels(source);
+
+  if (hasTransparentAlpha) {
+    return source;
+  }
+
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  const croppedHeight = width && height ? Math.max(Math.round(height * 0.86), Math.round(height * 0.74)) : height;
+  const cropped =
+    width && height
+      ? await sharp(source)
+          .extract({
+            left: 0,
+            top: 0,
+            width,
+            height: Math.min(height, croppedHeight)
+          })
+          .png()
+          .toBuffer()
+      : source;
+
+  return removeFlatBackground(cropped);
+}
+
+async function hasTransparentPixels(source: Buffer) {
+  const image = sharp(source);
+  const metadata = await image.metadata();
+  if (!metadata.hasAlpha) {
+    return false;
+  }
+
+  const stats = await image.stats();
+  const alpha = stats.channels[3];
+  return (alpha?.min ?? 255) < 250;
+}
+
+async function removeFlatBackground(source: Buffer) {
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const background = sampleCornerColor(data, info.width, info.height, info.channels);
+  const output = Buffer.from(data);
+
+  for (let index = 0; index < output.length; index += info.channels) {
+    const distance = colorDistance(
+      output[index] ?? 0,
+      output[index + 1] ?? 0,
+      output[index + 2] ?? 0,
+      background.r,
+      background.g,
+      background.b
+    );
+
+    if (distance < 42) {
+      output[index + 3] = 0;
+    }
+  }
+
+  return sharp(output, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: info.channels
+    }
+  })
+    .png()
+    .toBuffer();
+}
+
+function sampleCornerColor(data: Buffer, width: number, height: number, channels: number) {
+  const sampleSize = Math.max(8, Math.min(24, Math.floor(Math.min(width, height) / 12)));
+  const corners = [
+    { x: 0, y: 0 },
+    { x: width - sampleSize, y: 0 },
+    { x: 0, y: height - sampleSize },
+    { x: width - sampleSize, y: height - sampleSize }
+  ];
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+
+  for (const corner of corners) {
+    for (let y = corner.y; y < corner.y + sampleSize; y += 1) {
+      for (let x = corner.x; x < corner.x + sampleSize; x += 1) {
+        const index = (y * width + x) * channels;
+        r += data[index] ?? 0;
+        g += data[index + 1] ?? 0;
+        b += data[index + 2] ?? 0;
+        count += 1;
+      }
+    }
+  }
+
+  return {
+    r: Math.round(r / count),
+    g: Math.round(g / count),
+    b: Math.round(b / count)
+  };
+}
+
+function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number) {
+  return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
 }
