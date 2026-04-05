@@ -358,6 +358,22 @@ select {
   flex: 1;
 }
 
+.copyTextAreaRow {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.copyTextAreaInput {
+  flex: 1;
+}
+
+.copyTextAreaButton {
+  align-self: stretch;
+  height: auto;
+  min-height: 100%;
+}
+
 .copyIconButton {
   display: inline-flex;
   align-items: center;

@@ -55,16 +55,28 @@ export function ManualMessageTools({
         </button>
       </div>
       {copied === "initial_link" ? <span className="muted">Copied link</span> : null}
-      <textarea className="uploadTextarea" value={initialMessage} rows={4} readOnly />
-      <div className="actions">
+      <div className="copyTextAreaRow">
+        <textarea className="uploadTextarea copyTextAreaInput" value={initialMessage} rows={4} readOnly />
         <button
-          className="buttonSecondary"
+          className="copyIconButton copyTextAreaButton"
           type="button"
           onClick={() => copyText(initialMessage, "initial_message")}
+          aria-label="Copy initial message"
+          title={copied === "initial_message" ? "Copied" : "Copy initial message"}
         >
-          {copied === "initial_message" ? "Copied message" : "Copy initial message"}
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="copyIcon">
+            <path
+              d="M9 9h9v11H9zM6 4h9v2H8v9H6z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
       </div>
+      {copied === "initial_message" ? <span className="muted">Copied message</span> : null}
 
       <strong>Portrait ready link</strong>
       {deliveryUrl && deliveryMessage ? (

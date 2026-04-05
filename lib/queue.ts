@@ -33,7 +33,7 @@ export async function enqueueRenderJob(renderJobId: string) {
     "render",
     { renderJobId },
     {
-      jobId: `render:${renderJobId}`
+      jobId: `render-${renderJobId}`
     }
   );
 }
@@ -44,7 +44,7 @@ export async function enqueueReminder(orderId: string, label: string, delayMs: n
     { orderId, label },
     {
       delay: delayMs,
-      jobId: `reminder:${orderId}:${label}`
+      jobId: `reminder-${orderId}-${toSafeJobToken(label)}`
     }
   );
 }
@@ -54,7 +54,17 @@ export async function enqueueDelivery(orderId: string) {
     "delivery",
     { orderId },
     {
-      jobId: `delivery:${orderId}`
+      jobId: `delivery-${orderId}`
     }
   );
+}
+
+function toSafeJobToken(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || "job";
 }
