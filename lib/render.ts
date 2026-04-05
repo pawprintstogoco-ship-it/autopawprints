@@ -95,10 +95,10 @@ async function buildPosterPng(
     backgroundStyle: PosterBackgroundStyle;
   }
 ) {
-  const artWidth = 1560;
-  const artHeight = 1820;
+  const artWidth = 1440;
+  const artHeight = 1700;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 620;
+  const artTop = 700;
   const title = buildTitleLayout(petName, fontStyle);
   const background = getPosterBackgroundOption(backgroundStyle);
   const titleFont = getPosterFontOption(fontStyle);
@@ -261,15 +261,18 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "If a marking is visible in the source photo, it should still be visible in the final portrait.",
       "",
       "CROP / FRAMING (VERY IMPORTANT):",
-      "The pet should be shown as a centered HEAD-AND-CHEST portrait only.",
-      "Frame from just above the top of the head down to the upper chest / front shoulders.",
+      "The pet should be shown as a centered bust portrait only.",
+      "Always compose as a frontal or slight three-quarter FRONTAL bust shot.",
+      "The entire head must be fully visible, including BOTH ear tips with comfortable margin around them.",
+      "The full upper chest / shoulders must be visible within the canvas.",
+      "Do NOT crop off ear tips, head sides, or shoulder edges.",
       "Do NOT zoom out to include the full body, legs, paws, or too much torso.",
-      "The head should be large and prominent in frame, occupying most of the composition.",
+      "The head should be large and prominent in frame, but still fully contained inside the canvas.",
       "The portrait should feel close, iconic, and symmetrical like a modern custom pet print.",
       "Leave comfortable empty space above the head so the app can place the pet name separately.",
       "",
       "POSE:",
-      "Use a calm front-facing or slight natural three-quarter angle based on the source image.",
+      "Use a calm frontal or slight three-quarter frontal angle based on the source image.",
       "Keep the pose simple, centered, and portrait-oriented.",
       "Do not exaggerate head tilt or alter the pet's natural expression.",
       "",
@@ -303,6 +306,7 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "Return ONLY the pet portrait cutout on a transparent background.",
       "No poster template, no frame, no border, no background block, and no blank card area.",
       "The lower chest / fur can continue toward the bottom edge of the asset, but there must be no text or banner.",
+      "The portrait asset should reach low enough that the app can place it flush to the bottom of the final poster.",
       "",
       "STRICT NEGATIVE RULES:",
       "- no full body",
@@ -528,29 +532,29 @@ function toTitleCase(value: string) {
 
 async function preparePortraitForComposition(source: Buffer) {
   const metadata = await sharp(source).metadata();
+  const bannerTrimmed = await cropBottomBanner(source);
   const hasTransparentAlpha = await hasTransparentPixels(source);
 
   if (hasTransparentAlpha) {
-    return source;
+    return bannerTrimmed;
   }
 
   const width = metadata.width ?? 0;
   const height = metadata.height ?? 0;
-  const croppedHeight = width && height ? Math.max(Math.round(height * 0.86), Math.round(height * 0.74)) : height;
-  const cropped =
+  const safeSource =
     width && height
-      ? await sharp(source)
+      ? await sharp(bannerTrimmed)
           .extract({
             left: 0,
             top: 0,
             width,
-            height: Math.min(height, croppedHeight)
+            height
           })
           .png()
           .toBuffer()
-      : source;
+      : bannerTrimmed;
 
-  return removeFlatBackground(cropped);
+  return removeFlatBackground(safeSource);
 }
 
 async function hasTransparentPixels(source: Buffer) {
@@ -635,4 +639,63 @@ function sampleCornerColor(data: Buffer, width: number, height: number, channels
 
 function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number) {
   return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
+}
+
+async function cropBottomBanner(source: Buffer) {
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  let cutRow = info.height;
+  let solidRows = 0;
+
+  for (let y = info.height - 1; y >= 0; y -= 1) {
+    let opaque = 0;
+    let light = 0;
+
+    for (let x = 0; x < info.width; x += 1) {
+      const index = (y * info.width + x) * info.channels;
+      const alpha = data[index + 3] ?? 0;
+      if (alpha > 220) {
+        opaque += 1;
+        const brightness =
+          ((data[index] ?? 0) + (data[index + 1] ?? 0) + (data[index + 2] ?? 0)) / 3;
+        if (brightness > 210) {
+          light += 1;
+        }
+      }
+    }
+
+    const opaqueRatio = opaque / info.width;
+    const lightRatio = opaque > 0 ? light / opaque : 0;
+
+    if (opaqueRatio > 0.52 && lightRatio > 0.55) {
+      solidRows += 1;
+      cutRow = y;
+      continue;
+    }
+
+    if (solidRows >= 18) {
+      break;
+    }
+
+    solidRows = 0;
+    cutRow = info.height;
+    break;
+  }
+
+  if (cutRow >= info.height) {
+    return source;
+  }
+
+  return sharp(source)
+    .extract({
+      left: 0,
+      top: 0,
+      width: info.width,
+      height: Math.max(1, cutRow)
+    })
+    .png()
+    .toBuffer();
 }
