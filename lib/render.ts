@@ -31,6 +31,7 @@ const FINAL_HEIGHT = 2400;
 const TITLE_SAFE_HEIGHT = 700;
 const OPENAI_RENDER_TIMEOUT_MS = 90_000;
 const OPENAI_IMAGE_DOWNLOAD_TIMEOUT_MS = 45_000;
+const BUST_EXTENSION_HEIGHT = 420;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -134,7 +135,8 @@ async function buildPosterPng(
     })
     .png()
     .toBuffer();
-  const portraitMetadata = await sharp(alignedPortrait).metadata();
+  const portraitWithBustBase = await createBustBaseExtension(alignedPortrait);
+  const portraitMetadata = await sharp(portraitWithBustBase).metadata();
   const portraitWidth = portraitMetadata.width ?? artWidth;
   const portraitHeight = portraitMetadata.height ?? artHeight;
   const portraitLeft = artLeft + Math.round((artWidth - portraitWidth) / 2);
@@ -180,7 +182,7 @@ async function buildPosterPng(
   })
     .composite([
       { input: posterBackground },
-      { input: alignedPortrait, left: portraitLeft, top: portraitTop },
+      { input: portraitWithBustBase, left: portraitLeft, top: portraitTop },
       { input: titleSafeBand },
       {
         input: firstLineOverlay.buffer,
@@ -266,12 +268,15 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "The pet should be shown as a centered bust portrait only.",
       "Always compose as a frontal or slight three-quarter FRONTAL bust shot.",
       "The entire head must be fully visible, including BOTH ear tips with comfortable margin around them.",
-      "The full upper chest / shoulders must be visible within the canvas.",
+      "The full upper chest / shoulders must be visible within the canvas, and the chest should feel broad and connected.",
       "Do NOT crop off ear tips, head sides, or shoulder edges.",
       "Do NOT zoom out to include the full body, legs, paws, or too much torso.",
       "The head should be large and prominent in frame, but still fully contained inside the canvas.",
       "The portrait should feel close, iconic, and symmetrical like a modern custom pet print.",
       "Leave comfortable empty space above the head so the app can place the pet name separately.",
+      "The lower bust should flow downward as one connected chest shape, not as two thin side pieces with a hollow middle.",
+      "Avoid a tapered V-shaped ending or separated body slivers at the bottom of the portrait.",
+      "The lower fur mass should remain full and connected so the app can anchor the portrait cleanly to the bottom edge.",
       "",
       "POSE:",
       "Use a calm frontal or slight three-quarter frontal angle based on the source image.",
@@ -309,6 +314,7 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "No poster template, no frame, no border, no background block, and no blank card area.",
       "The lower chest / fur can continue toward the bottom edge of the asset, but there must be no text or banner.",
       "The portrait asset should reach low enough that the app can place it flush to the bottom of the final poster.",
+      "The bottom of the bust should stay visually full and connected, with enough chest and fur volume to fill the lower poster area cleanly.",
       "",
       "STRICT NEGATIVE RULES:",
       "- no full body",
@@ -733,6 +739,95 @@ async function cropBottomBanner(source: Buffer) {
       width: info.width,
       height: Math.max(1, cutRow)
     })
+    .png()
+    .toBuffer();
+}
+
+async function createBustBaseExtension(source: Buffer) {
+  const metadata = await sharp(source).metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+
+  if (!width || !height || height < 320) {
+    return source;
+  }
+
+  const sliceHeight = Math.max(120, Math.min(260, Math.round(height * 0.18)));
+  const sliceTop = Math.max(0, height - sliceHeight);
+  const sliceLeft = Math.max(0, Math.round(width * 0.18));
+  const sliceWidth = Math.max(1, width - sliceLeft * 2);
+
+  const extension = await sharp(source)
+    .extract({
+      left: sliceLeft,
+      top: sliceTop,
+      width: sliceWidth,
+      height: sliceHeight
+    })
+    .resize(Math.round(width * 0.7), BUST_EXTENSION_HEIGHT, {
+      fit: "fill",
+      position: "top"
+    })
+    .blur(1.2)
+    .modulate({
+      brightness: 1.02
+    })
+    .png()
+    .toBuffer();
+
+  const featherMask = Buffer.from(`
+    <svg width="${Math.round(width * 0.7)}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="fadeDown" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="white" stop-opacity="0.85"/>
+          <stop offset="18%" stop-color="white" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="white" stop-opacity="1"/>
+        </linearGradient>
+      </defs>
+      <ellipse
+        cx="${Math.round(width * 0.35)}"
+        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.52)}"
+        rx="${Math.round(width * 0.26)}"
+        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.56)}"
+        fill="url(#fadeDown)"
+      />
+    </svg>
+  `);
+
+  const featheredExtension = await sharp(extension)
+    .composite([
+      {
+        input: featherMask,
+        blend: "dest-in"
+      }
+    ])
+    .png()
+    .toBuffer();
+
+  const extendedHeight = height + BUST_EXTENSION_HEIGHT - Math.round(sliceHeight * 0.55);
+  const extensionTop = height - Math.round(sliceHeight * 0.55);
+  const extensionLeft = Math.round((width - Math.round(width * 0.7)) / 2);
+
+  return sharp({
+    create: {
+      width,
+      height: extendedHeight,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }
+  })
+    .composite([
+      {
+        input: featheredExtension,
+        left: extensionLeft,
+        top: extensionTop
+      },
+      {
+        input: source,
+        left: 0,
+        top: 0
+      }
+    ])
     .png()
     .toBuffer();
 }

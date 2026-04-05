@@ -25,8 +25,9 @@ export function UploadForm({ token }: { token: string }) {
   const [petNamePreview, setPetNamePreview] = useState("");
   const [selectedFontStyle, setSelectedFontStyle] =
     useState<PosterFontStyle>(DEFAULT_POSTER_FONT_STYLE);
-  const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
-    useState<PosterBackgroundStyle>(DEFAULT_POSTER_BACKGROUND_STYLE);
+const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
+  useState<PosterBackgroundStyle>(DEFAULT_POSTER_BACKGROUND_STYLE);
+  const uploadTimeoutMs = 180000;
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -112,7 +113,7 @@ export function UploadForm({ token }: { token: string }) {
 
       window.setTimeout(() => {
         if (!settled) {
-          setErrorMessage("Upload timed out. Please try again.");
+          setErrorMessage("Upload is taking longer than expected. Please try again in a moment.");
           setIsComplete(false);
           setIsSubmitting(false);
           setUploadProgress(0);
@@ -123,7 +124,7 @@ export function UploadForm({ token }: { token: string }) {
           }
           finish();
         }
-      }, 20000);
+      }, uploadTimeoutMs);
     });
   }
 

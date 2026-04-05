@@ -1,10 +1,12 @@
-import { after, NextResponse } from "next/server";
-import { getOrderByUploadToken, processRenderJob, storeCustomerUpload } from "@/lib/orders";
+import { NextResponse } from "next/server";
+import { getOrderByUploadToken, storeCustomerUpload } from "@/lib/orders";
 import {
   parsePosterBackgroundStyle,
   parsePosterFontStyle
 } from "@/lib/poster-styles";
 import { MAX_UPLOAD_BYTES, isAllowedUploadMimeType } from "@/lib/uploads";
+
+export const maxDuration = 180;
 
 export async function POST(
   request: Request,
@@ -61,7 +63,7 @@ export async function POST(
     const fontStyle = parsePosterFontStyle(formData.get("fontStyle"));
     const backgroundStyle = parsePosterBackgroundStyle(formData.get("backgroundStyle"));
 
-    const result = await storeCustomerUpload({
+    await storeCustomerUpload({
       orderId: order.id,
       petName,
       notes,
@@ -69,20 +71,8 @@ export async function POST(
       backgroundStyle,
       originalName: photo.name,
       mimeType: photo.type,
-      fileBuffer: Buffer.from(await photo.arrayBuffer()),
-      deferInlineProcessing: true
+      fileBuffer: Buffer.from(await photo.arrayBuffer())
     });
-
-    if (result.processingDeferred && result.renderJob) {
-      const renderJobId = result.renderJob.id;
-      after(async () => {
-        try {
-          await processRenderJob(renderJobId);
-        } catch (error) {
-          console.error(`Deferred upload render failed for order ${order.id}`, error);
-        }
-      });
-    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
     const normalized = message.toLowerCase();
