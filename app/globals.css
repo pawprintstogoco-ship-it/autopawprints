@@ -695,6 +695,11 @@ select {
   gap: 22px;
 }
 
+.uploadWorkGridSuccess {
+  grid-template-columns: 1fr;
+  max-width: 840px;
+}
+
 .uploadFormCard,
 .uploadPortraitCard,
 .uploadGuidanceCard {

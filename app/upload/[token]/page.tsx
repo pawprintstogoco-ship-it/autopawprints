@@ -85,7 +85,7 @@ export default async function UploadPage({
         </div>
 
         <div className="uploadFlow">
-          <div className="uploadWorkGrid">
+          <div className={`uploadWorkGrid${hasUploadedPhoto || isDelivered ? " uploadWorkGridSuccess" : ""}`}>
             <section className="uploadFormCard">
               {isDelivered ? (
                 <div className="uploadSuccessBanner" role="status">
@@ -96,7 +96,7 @@ export default async function UploadPage({
               <div className="uploadSectionHeader">
                 <div>
                   {hasUploadedPhoto || isDelivered ? null : <div className="eyebrow">Upload details</div>}
-                  <h2>Upload portrait reference</h2>
+                  <h2>{hasUploadedPhoto && !isDelivered ? "Upload Successful!" : "Upload portrait reference"}</h2>
                 </div>
                 {accentCopy ? <p>{accentCopy}</p> : null}
               </div>
@@ -112,8 +112,7 @@ export default async function UploadPage({
                 </div>
               ) : hasUploadedPhoto ? (
                 <div className="uploadLockedMessage">
-                  Upload is complete for this order. The artist is currently working on your
-                  portrait, and you can expect to hear back from us within 24 hours.
+                  We've received your order. Sit back and relax.
                 </div>
               ) : (
                 <UploadForm token={token} />
