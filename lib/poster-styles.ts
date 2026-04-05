@@ -24,14 +24,14 @@ export const POSTER_FONT_OPTIONS: Array<{
   {
     id: "site",
     label: "Classic",
-    description: "The clean title style used throughout Pawprints.",
+    description: "Clean and modern.",
     previewFamily: "var(--font-poster-title), var(--font-display), serif",
     previewColor: "#4a3727"
   },
   {
     id: "script",
     label: "Script",
-    description: "A logo-inspired script with a softer signature feel.",
+    description: "Confident and elegant.",
     previewFamily: "var(--font-poster-script), cursive",
     previewColor: "#1f1813"
   }
