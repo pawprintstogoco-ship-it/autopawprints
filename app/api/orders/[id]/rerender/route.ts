@@ -1,9 +1,8 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth";
-import { enqueueRenderJob } from "@/lib/queue";
-import { processRenderJob, rerenderOrder } from "@/lib/orders";
+import { rerenderOrder } from "@/lib/orders";
 
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 export async function POST(
   request: Request,
@@ -14,22 +13,7 @@ export async function POST(
   const redirectUrl = new URL(`/orders/${id}`, request.url);
 
   try {
-    const { processingDeferred, renderJob } = await rerenderOrder(id, {
-      skipProcessing: true
-    });
-
-    after(async () => {
-      try {
-        if (processingDeferred) {
-          await processRenderJob(renderJob.id);
-        } else {
-          await enqueueRenderJob(renderJob.id);
-        }
-      } catch (error) {
-        console.error(`Deferred rerender failed for order ${id}`, error);
-      }
-    });
-
+    await rerenderOrder(id);
     redirectUrl.searchParams.set("rerenderStarted", "1");
   } catch (error) {
     console.error(`Rerender failed for order ${id}`, error);
