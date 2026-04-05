@@ -43,7 +43,7 @@ export const POSTER_BACKGROUND_OPTIONS: Array<{
   fill: string;
   accent: string;
 }> = [
-  { id: "offWhite", label: "Off-white", fill: "#f7f1e8", accent: "#d8cbb8" },
+  { id: "offWhite", label: "Off-white", fill: "#FFF9F5", accent: "#e6d7cb" },
   { id: "sage", label: "Sage green", fill: "#d9e2d3", accent: "#a8b8a0" },
   { id: "sky", label: "Sky blue", fill: "#dceaf4", accent: "#adc8dc" },
   { id: "slate", label: "Slate grey", fill: "#d9dde2", accent: "#a4adb8" },
