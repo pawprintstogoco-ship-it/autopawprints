@@ -1387,14 +1387,28 @@ select {
     padding: 0 10px;
   }
 
-  .uploadStyleGrid,
-  .uploadColourGrid {
-    grid-template-columns: 1fr;
+  .uploadStyleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .uploadColourGrid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  .uploadStyleCard {
+    padding: 12px;
+  }
+
+  .uploadFontPreview {
+    min-height: 2.2rem;
+    font-size: clamp(1.55rem, 6vw, 2rem);
+  }
+
+  .uploadStyleDescription {
+    font-size: 0.8rem;
+    line-height: 1.35;
   }
 
   .uploadColourCard {
