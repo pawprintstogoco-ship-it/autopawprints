@@ -40,7 +40,7 @@ export default async function OrderFilesPage() {
                 <span className="muted">Status: {upload.order.status.replaceAll("_", " ")}</span>
                 <span className="mono">Order ID: {upload.orderId}</span>
                 <a
-                  href={`/api/files/${upload.storageKey.split("/").map(encodeURIComponent).join("/")}`}
+                  href={`/api/admin/uploads/${upload.id}/thumbnail`}
                   className="buttonSecondary"
                   target="_blank"
                   rel="noreferrer"
