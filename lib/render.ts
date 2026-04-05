@@ -29,6 +29,8 @@ export type RenderOutput = {
 const FINAL_WIDTH = 1800;
 const FINAL_HEIGHT = 2400;
 const TITLE_SAFE_HEIGHT = 700;
+const OPENAI_RENDER_TIMEOUT_MS = 90_000;
+const OPENAI_IMAGE_DOWNLOAD_TIMEOUT_MS = 45_000;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -351,13 +353,18 @@ async function generateAiPortrait(source: Buffer, petName: string) {
     "pet-reference.png"
   );
 
-  const response = await fetch("https://api.openai.com/v1/images/edits", {
+  const response = await fetchWithTimeout(
+    "https://api.openai.com/v1/images/edits",
+    {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`
     },
     body: form
-  });
+    },
+    OPENAI_RENDER_TIMEOUT_MS,
+    `OpenAI image edit timed out for ${petName}`
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -377,7 +384,12 @@ async function generateAiPortrait(source: Buffer, petName: string) {
   }
 
   if (image?.url) {
-    const imageResponse = await fetch(image.url);
+    const imageResponse = await fetchWithTimeout(
+      image.url,
+      undefined,
+      OPENAI_IMAGE_DOWNLOAD_TIMEOUT_MS,
+      `OpenAI image download timed out for ${petName}`
+    );
     if (!imageResponse.ok) {
       throw new Error(`OpenAI returned an unreadable image URL: ${imageResponse.status}`);
     }
@@ -386,6 +398,31 @@ async function generateAiPortrait(source: Buffer, petName: string) {
   }
 
   throw new Error("OpenAI image edit returned no image data");
+}
+
+async function fetchWithTimeout(
+  input: string | URL,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+  timeoutMessage: string
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(timeoutMessage);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function createFallbackPortrait(source: Buffer) {
