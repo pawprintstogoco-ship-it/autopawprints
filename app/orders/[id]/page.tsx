@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OrderStatus } from "@prisma/client";
 import { headers } from "next/headers";
@@ -127,10 +126,32 @@ export default async function OrderDetailPage({
                 <span className="muted">Waiting for upload</span>
               ) : (
                 order.uploads.map((upload) => (
-                  <div key={upload.id} className="stack">
-                    <strong>{upload.petName}</strong>
-                    <span className="muted">{upload.originalName}</span>
-                    <span className="mono">Blur {upload.blurScore ?? "n/a"}</span>
+                  <div key={upload.id} className="opsUploadCard">
+                    <a
+                      href={`/api/admin/uploads/${upload.id}/thumbnail`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="opsUploadThumbLink"
+                      aria-label={`Open uploaded photo for ${upload.petName}`}
+                    >
+                      <img
+                        alt={`Uploaded photo for ${upload.petName}`}
+                        src={`/api/admin/uploads/${upload.id}/thumbnail`}
+                        className="opsUploadThumb"
+                      />
+                    </a>
+                    <div className="stack">
+                      <strong>{upload.petName}</strong>
+                      <a
+                        href={`/api/admin/uploads/${upload.id}/thumbnail`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="opsUploadFileLink"
+                      >
+                        {upload.originalName}
+                      </a>
+                      <span className="mono">Blur {upload.blurScore ?? "n/a"}</span>
+                    </div>
                   </div>
                 ))
               )}

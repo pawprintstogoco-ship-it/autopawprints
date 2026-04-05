@@ -348,6 +348,40 @@ select {
   background: rgba(255, 255, 255, 0.95);
 }
 
+.opsUploadCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.opsUploadThumbLink {
+  flex: 0 0 auto;
+  display: inline-flex;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.opsUploadThumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  display: block;
+}
+
+.opsUploadFileLink {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: rgba(42, 33, 25, 0.28);
+  text-underline-offset: 3px;
+  word-break: break-word;
+}
+
+.opsUploadFileLink:hover {
+  text-decoration-color: currentColor;
+}
+
 .copyFieldRow {
   display: flex;
   align-items: center;
