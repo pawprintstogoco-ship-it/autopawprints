@@ -770,86 +770,124 @@ export async function processRenderJob(renderJobId: string) {
     }
   });
 
-  const upload = await prisma.customerUpload.findUnique({
-    where: {
-      id: renderJob.customerUploadId
+  try {
+    const upload = await prisma.customerUpload.findUnique({
+      where: {
+        id: renderJob.customerUploadId
+      }
+    });
+
+    if (!upload) {
+      throw new Error("Render job is missing its source upload");
     }
-  });
 
-  if (!upload) {
-    throw new Error("Render job is missing its source upload");
-  }
-
-  const [order, artifactCount] = await Promise.all([
-    prisma.order.update({
-      where: {
-        id: renderJob.orderId
-      },
-      data: {
-        status: OrderStatus.RENDERING
-      }
-    }),
-    prisma.artifact.count({
-      where: {
-        orderId: renderJob.orderId
-      }
-    })
-  ]);
-
-  const source = await getBuffer(upload.storageKey);
-  const version = Math.floor(artifactCount / 2) + 1;
-  const output = await renderPortrait({
-    source,
-    petName: upload.petName,
-    orderId: order.id,
-    version
-  });
-
-  await prisma.$transaction([
-    prisma.artifact.createMany({
-      data: [
-        {
-          orderId: order.id,
-          renderJobId: renderJob.id,
-          kind: ArtifactKind.PREVIEW,
-          version,
-          storageKey: output.previewKey,
-          mimeType: "image/png"
+    const [order, artifactCount] = await Promise.all([
+      prisma.order.update({
+        where: {
+          id: renderJob.orderId
         },
-        {
-          orderId: order.id,
-          renderJobId: renderJob.id,
-          kind: ArtifactKind.FINAL_PNG,
-          version,
-          storageKey: output.finalPngKey,
-          mimeType: "image/png"
+        data: {
+          status: OrderStatus.RENDERING
         }
-      ]
-    }),
-    prisma.renderJob.update({
-      where: {
-        id: renderJob.id
-      },
-      data: {
-        status: RenderJobStatus.SUCCEEDED,
-        completedAt: new Date()
-      }
-    }),
-    prisma.order.update({
-      where: {
-        id: order.id
-      },
-      data: {
-        status: OrderStatus.AWAITING_APPROVAL,
-        auditLog: {
-          create: {
-            action: "render.completed",
-            metadata: output
+      }),
+      prisma.artifact.count({
+        where: {
+          orderId: renderJob.orderId
+        }
+      })
+    ]);
+
+    const source = await getBuffer(upload.storageKey);
+    const version = Math.floor(artifactCount / 2) + 1;
+    const output = await renderPortrait({
+      source,
+      petName: upload.petName,
+      orderId: order.id,
+      version
+    });
+
+    await prisma.$transaction([
+      prisma.artifact.createMany({
+        data: [
+          {
+            orderId: order.id,
+            renderJobId: renderJob.id,
+            kind: ArtifactKind.PREVIEW,
+            version,
+            storageKey: output.previewKey,
+            mimeType: "image/png"
+          },
+          {
+            orderId: order.id,
+            renderJobId: renderJob.id,
+            kind: ArtifactKind.FINAL_PNG,
+            version,
+            storageKey: output.finalPngKey,
+            mimeType: "image/png"
+          }
+        ]
+      }),
+      prisma.renderJob.update({
+        where: {
+          id: renderJob.id
+        },
+        data: {
+          status: RenderJobStatus.SUCCEEDED,
+          completedAt: new Date(),
+          failureReason: null
+        }
+      }),
+      prisma.order.update({
+        where: {
+          id: order.id
+        },
+        data: {
+          status: OrderStatus.AWAITING_APPROVAL,
+          auditLog: {
+            create: {
+              action: "render.completed",
+              metadata: output
+            }
           }
         }
-      }
-    })
-  ]);
+      })
+    ]);
+  } catch (error) {
+    const failureReason = formatJobFailureReason(error);
+    console.error(`[render] job ${renderJob.id} failed`, error);
+
+    await prisma.$transaction([
+      prisma.renderJob.update({
+        where: {
+          id: renderJob.id
+        },
+        data: {
+          status: RenderJobStatus.FAILED,
+          failureReason,
+          completedAt: new Date()
+        }
+      }),
+      prisma.order.update({
+        where: {
+          id: renderJob.orderId
+        },
+        data: {
+          status: OrderStatus.NEEDS_MANUAL_ATTENTION,
+          auditLog: {
+            create: {
+              action: "render.failed",
+              metadata: {
+                renderJobId: renderJob.id,
+                failureReason
+              }
+            }
+          }
+        }
+      })
+    ]);
+
+    throw error;
+  }
 }
 
 export async function approveOrder(orderId: string) {
@@ -1118,4 +1156,9 @@ function shouldRunInlineJobs() {
   // Hosted demo deployments rely on inline processing unless a dedicated worker
   // has been explicitly configured to take over queued jobs.
   return process.env.VERCEL === "1";
+}
+
+function formatJobFailureReason(error: unknown) {
+  const message = error instanceof Error ? error.message : "Unknown render failure";
+  return message.slice(0, 500);
 }

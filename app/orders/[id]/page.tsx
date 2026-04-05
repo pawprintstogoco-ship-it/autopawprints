@@ -14,7 +14,7 @@ export default async function OrderDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ approveError?: string }>;
+  searchParams?: Promise<{ approveError?: string; rerenderError?: string }>;
 }) {
   await requireAdminSession();
   const { id } = await params;
@@ -22,6 +22,9 @@ export default async function OrderDetailPage({
   const order = await getOrderById(id);
   const approveErrorMessage = query.approveError
     ? safelyDecode(query.approveError)
+    : null;
+  const rerenderErrorMessage = query.rerenderError
+    ? safelyDecode(query.rerenderError)
     : null;
   const { APP_URL } = requireEnv();
   const requestHeaders = await headers();
@@ -84,6 +87,12 @@ export default async function OrderDetailPage({
           {approveErrorMessage ? (
             <div className="errorBanner" role="alert">
               Approval failed: {approveErrorMessage}
+            </div>
+          ) : null}
+
+          {rerenderErrorMessage ? (
+            <div className="errorBanner" role="alert">
+              Re-render failed: {rerenderErrorMessage}
             </div>
           ) : null}
 
