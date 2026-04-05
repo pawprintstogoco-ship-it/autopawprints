@@ -1105,5 +1105,17 @@ async function withQueryFallback<T>(label: string, query: () => Promise<T>, fall
 }
 
 function shouldRunInlineJobs() {
-  return process.env.INLINE_RENDER_JOBS === "true";
+  const explicitInlineSetting = process.env.INLINE_RENDER_JOBS;
+
+  if (explicitInlineSetting === "true") {
+    return true;
+  }
+
+  if (explicitInlineSetting === "false") {
+    return false;
+  }
+
+  // Hosted demo deployments rely on inline processing unless a dedicated worker
+  // has been explicitly configured to take over queued jobs.
+  return process.env.VERCEL === "1";
 }
