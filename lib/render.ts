@@ -754,6 +754,8 @@ async function createBustBaseExtension(source: Buffer) {
 
   const lowerBandHeight = Math.max(220, Math.min(420, Math.round(height * 0.34)));
   const lowerBandTop = Math.max(0, height - lowerBandHeight);
+  const underpaintWidth = width;
+
   const lowerBand = await sharp(source)
     .extract({
       left: 0,
@@ -761,7 +763,7 @@ async function createBustBaseExtension(source: Buffer) {
       width,
       height: lowerBandHeight
     })
-    .resize(Math.round(width * 1.08), BUST_EXTENSION_HEIGHT, {
+    .resize(underpaintWidth, BUST_EXTENSION_HEIGHT, {
       fit: "fill",
       position: "centre"
     })
@@ -793,8 +795,6 @@ async function createBustBaseExtension(source: Buffer) {
     })
     .png()
     .toBuffer();
-
-  const underpaintWidth = Math.round(width * 1.08);
 
   const featherMask = Buffer.from(`
     <svg width="${underpaintWidth}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
@@ -881,7 +881,7 @@ async function createBustBaseExtension(source: Buffer) {
   const overlap = Math.round(lowerBandHeight * 0.58);
   const extendedHeight = height + BUST_EXTENSION_HEIGHT - overlap;
   const underpaintTop = height - overlap;
-  const underpaintLeft = Math.round((width - underpaintWidth) / 2);
+  const underpaintLeft = 0;
   const centerColumnLeftOnCanvas = Math.round((width - Math.round(width * 0.62)) / 2);
   const centerColumnTop = underpaintTop + Math.round(BUST_EXTENSION_HEIGHT * 0.06);
 
