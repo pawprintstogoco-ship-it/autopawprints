@@ -992,7 +992,12 @@ export async function markNeedsManualAttention(orderId: string, reason: string) 
   });
 }
 
-export async function rerenderOrder(orderId: string) {
+export async function rerenderOrder(
+  orderId: string,
+  options?: {
+    deferInlineProcessing?: boolean;
+  }
+) {
   const latestUpload = await prisma.customerUpload.findFirst({
     where: {
       orderId
@@ -1025,12 +1030,24 @@ export async function rerenderOrder(orderId: string) {
     }
   });
 
-  if (shouldRunInlineJobs()) {
+  const shouldProcessInline = shouldRunInlineJobs();
+
+  if (options?.deferInlineProcessing && shouldProcessInline) {
+    return {
+      renderJob,
+      processingDeferred: true
+    };
+  }
+
+  if (shouldProcessInline) {
     await processRenderJob(renderJob.id);
   } else {
     await enqueueRenderJob(renderJob.id);
   }
-  return renderJob;
+  return {
+    renderJob,
+    processingDeferred: false
+  };
 }
 
 export async function deliverApprovedOrder(orderId: string) {

@@ -13,7 +13,11 @@ export default async function OrderDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ approveError?: string; rerenderError?: string }>;
+  searchParams?: Promise<{
+    approveError?: string;
+    rerenderError?: string;
+    rerenderStarted?: string;
+  }>;
 }) {
   await requireAdminSession();
   const { id } = await params;
@@ -25,6 +29,7 @@ export default async function OrderDetailPage({
   const rerenderErrorMessage = query.rerenderError
     ? safelyDecode(query.rerenderError)
     : null;
+  const rerenderStarted = query.rerenderStarted === "1";
   const { APP_URL } = requireEnv();
   const requestHeaders = await headers();
   const forwardedHost = requestHeaders.get("x-forwarded-host");
@@ -92,6 +97,12 @@ export default async function OrderDetailPage({
           {rerenderErrorMessage ? (
             <div className="errorBanner" role="alert">
               Re-render failed: {rerenderErrorMessage}
+            </div>
+          ) : null}
+
+          {rerenderStarted ? (
+            <div className="successBanner" role="status">
+              Re-render started. Refresh this page in a moment to see the updated preview.
             </div>
           ) : null}
 

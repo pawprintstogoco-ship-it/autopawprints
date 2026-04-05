@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth";
-import { rerenderOrder } from "@/lib/orders";
+import { processRenderJob, rerenderOrder } from "@/lib/orders";
+
+export const maxDuration = 60;
 
 export async function POST(
   request: Request,
@@ -8,21 +10,32 @@ export async function POST(
 ) {
   await requireAdminSession();
   const { id } = await context.params;
+  const redirectUrl = new URL(`/orders/${id}`, request.url);
+
   try {
-    await rerenderOrder(id);
+    const { processingDeferred, renderJob } = await rerenderOrder(id, {
+      deferInlineProcessing: true
+    });
+
+    if (processingDeferred) {
+      after(async () => {
+        try {
+          await processRenderJob(renderJob.id);
+        } catch (error) {
+          console.error(`Deferred rerender failed for order ${id}`, error);
+        }
+      });
+    }
+
+    redirectUrl.searchParams.set("rerenderStarted", "1");
   } catch (error) {
     console.error(`Rerender failed for order ${id}`, error);
     const message =
       error instanceof Error ? error.message : "Re-render failed. Please try again.";
-    const redirectUrl = new URL(`/orders/${id}`, request.url);
     redirectUrl.searchParams.set("rerenderError", message);
-
-    return NextResponse.redirect(redirectUrl, {
-      status: 303
-    });
   }
 
-  return NextResponse.redirect(new URL(`/orders/${id}`, request.url), {
+  return NextResponse.redirect(redirectUrl, {
     status: 303
   });
 }
