@@ -31,7 +31,7 @@ const FINAL_HEIGHT = 2400;
 const TITLE_SAFE_HEIGHT = 700;
 const OPENAI_RENDER_TIMEOUT_MS = 90_000;
 const OPENAI_IMAGE_DOWNLOAD_TIMEOUT_MS = 45_000;
-const BUST_EXTENSION_HEIGHT = 420;
+const BUST_EXTENSION_HEIGHT = 520;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -752,10 +752,11 @@ async function createBustBaseExtension(source: Buffer) {
     return source;
   }
 
-  const sliceHeight = Math.max(120, Math.min(260, Math.round(height * 0.18)));
+  const sliceHeight = Math.max(140, Math.min(320, Math.round(height * 0.22)));
   const sliceTop = Math.max(0, height - sliceHeight);
-  const sliceLeft = Math.max(0, Math.round(width * 0.18));
+  const sliceLeft = Math.max(0, Math.round(width * 0.1));
   const sliceWidth = Math.max(1, width - sliceLeft * 2);
+  const extensionWidth = Math.round(width * 0.9);
 
   const extension = await sharp(source)
     .extract({
@@ -764,32 +765,49 @@ async function createBustBaseExtension(source: Buffer) {
       width: sliceWidth,
       height: sliceHeight
     })
-    .resize(Math.round(width * 0.7), BUST_EXTENSION_HEIGHT, {
+    .resize(extensionWidth, BUST_EXTENSION_HEIGHT, {
       fit: "fill",
       position: "top"
     })
-    .blur(1.2)
+    .blur(1.4)
     .modulate({
-      brightness: 1.02
+      brightness: 1.01,
+      saturation: 0.94
     })
     .png()
     .toBuffer();
 
   const featherMask = Buffer.from(`
-    <svg width="${Math.round(width * 0.7)}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${extensionWidth}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="fadeDown" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="white" stop-opacity="0.85"/>
-          <stop offset="18%" stop-color="white" stop-opacity="0.95"/>
+          <stop offset="0%" stop-color="white" stop-opacity="0.82"/>
+          <stop offset="22%" stop-color="white" stop-opacity="0.96"/>
           <stop offset="100%" stop-color="white" stop-opacity="1"/>
         </linearGradient>
       </defs>
       <ellipse
-        cx="${Math.round(width * 0.35)}"
-        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.52)}"
-        rx="${Math.round(width * 0.26)}"
-        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.56)}"
+        cx="${Math.round(extensionWidth * 0.5)}"
+        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.5)}"
+        rx="${Math.round(extensionWidth * 0.44)}"
+        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.62)}"
         fill="url(#fadeDown)"
+      />
+      <ellipse
+        cx="${Math.round(extensionWidth * 0.22)}"
+        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.62)}"
+        rx="${Math.round(extensionWidth * 0.16)}"
+        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.34)}"
+        fill="white"
+        fill-opacity="0.72"
+      />
+      <ellipse
+        cx="${Math.round(extensionWidth * 0.78)}"
+        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.62)}"
+        rx="${Math.round(extensionWidth * 0.16)}"
+        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.34)}"
+        fill="white"
+        fill-opacity="0.72"
       />
     </svg>
   `);
@@ -804,9 +822,9 @@ async function createBustBaseExtension(source: Buffer) {
     .png()
     .toBuffer();
 
-  const extendedHeight = height + BUST_EXTENSION_HEIGHT - Math.round(sliceHeight * 0.55);
-  const extensionTop = height - Math.round(sliceHeight * 0.55);
-  const extensionLeft = Math.round((width - Math.round(width * 0.7)) / 2);
+  const extendedHeight = height + BUST_EXTENSION_HEIGHT - Math.round(sliceHeight * 0.62);
+  const extensionTop = height - Math.round(sliceHeight * 0.62);
+  const extensionLeft = Math.round((width - extensionWidth) / 2);
 
   return sharp({
     create: {
