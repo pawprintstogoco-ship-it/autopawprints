@@ -1035,6 +1035,7 @@ export async function rerenderOrder(
   orderId: string,
   options?: {
     deferInlineProcessing?: boolean;
+    skipProcessing?: boolean;
   }
 ) {
   const latestUpload = await prisma.customerUpload.findFirst({
@@ -1070,6 +1071,13 @@ export async function rerenderOrder(
   });
 
   const shouldProcessInline = shouldRunInlineJobs();
+
+  if (options?.skipProcessing) {
+    return {
+      renderJob,
+      processingDeferred: shouldProcessInline
+    };
+  }
 
   if (options?.deferInlineProcessing && shouldProcessInline) {
     return {

@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth";
+import { enqueueRenderJob } from "@/lib/queue";
 import { processRenderJob, rerenderOrder } from "@/lib/orders";
 
 export const maxDuration = 60;
@@ -14,18 +15,20 @@ export async function POST(
 
   try {
     const { processingDeferred, renderJob } = await rerenderOrder(id, {
-      deferInlineProcessing: true
+      skipProcessing: true
     });
 
-    if (processingDeferred) {
-      after(async () => {
-        try {
+    after(async () => {
+      try {
+        if (processingDeferred) {
           await processRenderJob(renderJob.id);
-        } catch (error) {
-          console.error(`Deferred rerender failed for order ${id}`, error);
+        } else {
+          await enqueueRenderJob(renderJob.id);
         }
-      });
-    }
+      } catch (error) {
+        console.error(`Deferred rerender failed for order ${id}`, error);
+      }
+    });
 
     redirectUrl.searchParams.set("rerenderStarted", "1");
   } catch (error) {
