@@ -768,10 +768,8 @@ async function createBustBaseExtension(source: Buffer) {
     return source;
   }
 
-  const lowerBandHeight = Math.max(220, Math.min(420, Math.round(height * 0.34)));
+  const lowerBandHeight = Math.max(220, Math.min(420, Math.round(height * 0.3)));
   const lowerBandTop = Math.max(0, height - lowerBandHeight);
-  const underpaintWidth = width;
-
   const lowerBand = await sharp(source)
     .extract({
       left: 0,
@@ -779,11 +777,35 @@ async function createBustBaseExtension(source: Buffer) {
       width,
       height: lowerBandHeight
     })
-    .resize(underpaintWidth, BUST_EXTENSION_HEIGHT, {
+    .resize(width, BUST_EXTENSION_HEIGHT, {
       fit: "fill",
-      position: "centre"
+      position: "top"
     })
-    .blur(2)
+    .blur(1.4)
+    .modulate({
+      brightness: 1.01,
+      saturation: 0.97
+    })
+    .png()
+    .toBuffer();
+
+  const chestCropWidth = Math.max(220, Math.min(Math.round(width * 0.58), width));
+  const chestCropLeft = Math.max(0, Math.round((width - chestCropWidth) / 2));
+  const chestCropHeight = Math.max(220, Math.min(Math.round(height * 0.28), height));
+  const chestCropTop = Math.max(0, height - chestCropHeight);
+  const chestExtensionWidth = Math.round(width * 0.78);
+  const chestExtension = await sharp(source)
+    .extract({
+      left: chestCropLeft,
+      top: chestCropTop,
+      width: chestCropWidth,
+      height: chestCropHeight
+    })
+    .resize(chestExtensionWidth, BUST_EXTENSION_HEIGHT, {
+      fit: "fill",
+      position: "top"
+    })
+    .blur(1)
     .modulate({
       brightness: 1.02,
       saturation: 0.96
@@ -791,115 +813,68 @@ async function createBustBaseExtension(source: Buffer) {
     .png()
     .toBuffer();
 
-  const centerColumnWidth = Math.max(160, Math.min(280, Math.round(width * 0.24)));
-  const centerColumnLeft = Math.max(0, Math.round((width - centerColumnWidth) / 2));
-  const centerColumn = await sharp(source)
-    .extract({
-      left: centerColumnLeft,
-      top: Math.max(0, height - Math.max(240, Math.round(height * 0.3))),
-      width: centerColumnWidth,
-      height: Math.max(200, Math.round(height * 0.26))
-    })
-    .resize(Math.round(width * 0.62), Math.round(BUST_EXTENSION_HEIGHT * 1.02), {
-      fit: "fill",
-      position: "top"
-    })
-    .blur(1.6)
-    .modulate({
-      brightness: 1.03,
-      saturation: 0.94
-    })
-    .png()
-    .toBuffer();
-
-  const featherMask = Buffer.from(`
-    <svg width="${underpaintWidth}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  const lowerBandMask = Buffer.from(`
+    <svg width="${width}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="fadeDown" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="white" stop-opacity="0.7"/>
-          <stop offset="16%" stop-color="white" stop-opacity="0.92"/>
-          <stop offset="100%" stop-color="white" stop-opacity="1"/>
+        <linearGradient id="underFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="white" stop-opacity="0.4"/>
+          <stop offset="18%" stop-color="white" stop-opacity="0.6"/>
+          <stop offset="100%" stop-color="white" stop-opacity="0.72"/>
         </linearGradient>
       </defs>
       <ellipse
-        cx="${Math.round(underpaintWidth * 0.5)}"
-        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.52)}"
-        rx="${Math.round(underpaintWidth * 0.47)}"
-        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.68)}"
-        fill="url(#fadeDown)"
-      />
-      <ellipse
-        cx="${Math.round(underpaintWidth * 0.18)}"
-        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.64)}"
-        rx="${Math.round(underpaintWidth * 0.18)}"
-        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.36)}"
-        fill="white"
-        fill-opacity="0.82"
-      />
-      <ellipse
-        cx="${Math.round(underpaintWidth * 0.82)}"
-        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.64)}"
-        rx="${Math.round(underpaintWidth * 0.18)}"
-        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.36)}"
-        fill="white"
-        fill-opacity="0.82"
-      />
-      <ellipse
-        cx="${Math.round(underpaintWidth * 0.5)}"
-        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.76)}"
-        rx="${Math.round(underpaintWidth * 0.28)}"
-        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.26)}"
-        fill="white"
-        fill-opacity="0.9"
+        cx="${Math.round(width * 0.5)}"
+        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.62)}"
+        rx="${Math.round(width * 0.46)}"
+        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.5)}"
+        fill="url(#underFade)"
       />
     </svg>
   `);
 
-  const featheredUnderpaint = await sharp(lowerBand)
-    .composite([
-      {
-        input: featherMask,
-        blend: "dest-in"
-      }
-    ])
-    .png()
-    .toBuffer();
-
-  const centerMask = Buffer.from(`
-    <svg width="${Math.round(width * 0.62)}" height="${Math.round(BUST_EXTENSION_HEIGHT * 1.02)}" xmlns="http://www.w3.org/2000/svg">
+  const chestMask = Buffer.from(`
+    <svg width="${chestExtensionWidth}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="centerFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="white" stop-opacity="0.7"/>
-          <stop offset="20%" stop-color="white" stop-opacity="0.95"/>
+        <linearGradient id="chestFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="white" stop-opacity="0.72"/>
+          <stop offset="14%" stop-color="white" stop-opacity="0.94"/>
           <stop offset="100%" stop-color="white" stop-opacity="1"/>
         </linearGradient>
       </defs>
-      <ellipse
-        cx="${Math.round(width * 0.31)}"
-        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.5)}"
-        rx="${Math.round(width * 0.24)}"
-        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.62)}"
-        fill="url(#centerFade)"
+      <path
+        d="M ${Math.round(chestExtensionWidth * 0.17)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.06)}
+           C ${Math.round(chestExtensionWidth * 0.07)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.3)},
+             ${Math.round(chestExtensionWidth * 0.05)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.72)},
+             ${Math.round(chestExtensionWidth * 0.23)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.98)}
+           C ${Math.round(chestExtensionWidth * 0.36)} ${Math.round(BUST_EXTENSION_HEIGHT * 1.03)},
+             ${Math.round(chestExtensionWidth * 0.64)} ${Math.round(BUST_EXTENSION_HEIGHT * 1.03)},
+             ${Math.round(chestExtensionWidth * 0.77)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.98)}
+           C ${Math.round(chestExtensionWidth * 0.95)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.72)},
+             ${Math.round(chestExtensionWidth * 0.93)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.3)},
+             ${Math.round(chestExtensionWidth * 0.83)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.06)}
+           C ${Math.round(chestExtensionWidth * 0.72)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.01)},
+             ${Math.round(chestExtensionWidth * 0.28)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.01)},
+             ${Math.round(chestExtensionWidth * 0.17)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.06)} Z"
+        fill="url(#chestFade)"
       />
     </svg>
   `);
 
-  const featheredCenterColumn = await sharp(centerColumn)
-    .composite([
-      {
-        input: centerMask,
-        blend: "dest-in"
-      }
-    ])
+  const featheredLowerBand = await sharp(lowerBand)
+    .composite([{ input: lowerBandMask, blend: "dest-in" }])
     .png()
     .toBuffer();
 
-  const overlap = Math.round(lowerBandHeight * 0.58);
+  const featheredChestExtension = await sharp(chestExtension)
+    .composite([{ input: chestMask, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+
+  const overlap = Math.round(lowerBandHeight * 0.6);
   const extendedHeight = height + BUST_EXTENSION_HEIGHT - overlap;
-  const underpaintTop = height - overlap;
-  const underpaintLeft = 0;
-  const centerColumnLeftOnCanvas = Math.round((width - Math.round(width * 0.62)) / 2);
-  const centerColumnTop = underpaintTop + Math.round(BUST_EXTENSION_HEIGHT * 0.06);
+  const extensionTop = height - overlap;
+  const chestLeft = Math.round((width - chestExtensionWidth) / 2);
+  const chestTop = extensionTop + Math.round(BUST_EXTENSION_HEIGHT * 0.02);
 
   return sharp({
     create: {
@@ -911,14 +886,14 @@ async function createBustBaseExtension(source: Buffer) {
   })
     .composite([
       {
-        input: featheredUnderpaint,
-        left: underpaintLeft,
-        top: underpaintTop
+        input: featheredLowerBand,
+        left: 0,
+        top: extensionTop
       },
       {
-        input: featheredCenterColumn,
-        left: centerColumnLeftOnCanvas,
-        top: centerColumnTop
+        input: featheredChestExtension,
+        left: chestLeft,
+        top: chestTop
       },
       {
         input: source,
