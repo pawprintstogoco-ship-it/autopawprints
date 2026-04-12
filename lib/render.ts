@@ -32,6 +32,7 @@ const TITLE_SAFE_HEIGHT = 700;
 const OPENAI_RENDER_TIMEOUT_MS = 90_000;
 const OPENAI_IMAGE_DOWNLOAD_TIMEOUT_MS = 45_000;
 const BUST_EXTENSION_HEIGHT = 620;
+const PORTRAIT_BOTTOM_BLEED = 120;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -140,7 +141,7 @@ async function buildPosterPng(
   const portraitWidth = portraitMetadata.width ?? artWidth;
   const portraitHeight = portraitMetadata.height ?? artHeight;
   const portraitLeft = artLeft + Math.round((artWidth - portraitWidth) / 2);
-  const portraitTop = Math.max(artTop, FINAL_HEIGHT - portraitHeight);
+  const portraitTop = Math.max(artTop, FINAL_HEIGHT - portraitHeight + PORTRAIT_BOTTOM_BLEED);
 
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
@@ -277,6 +278,8 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "The lower bust should flow downward as one connected chest shape, not as two thin side pieces with a hollow middle.",
       "Avoid a tapered V-shaped ending or separated body slivers at the bottom of the portrait.",
       "The lower fur mass should remain full and connected so the app can anchor the portrait cleanly to the bottom edge.",
+      "The lower chest should stay simple, broad, and visually grounded.",
+      "Do not invent extra lower-body anatomy, legs, paws, or tapered fur extensions below the chest.",
       "",
       "POSE:",
       "Use a calm frontal or slight three-quarter frontal angle based on the source image.",
@@ -315,6 +318,8 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "The lower chest / fur can continue toward the bottom edge of the asset, but there must be no text or banner.",
       "The portrait asset should reach low enough that the app can place it flush to the bottom of the final poster.",
       "The bottom of the bust should stay visually full and connected, with enough chest and fur volume to fill the lower poster area cleanly.",
+      "Keep the bust ending clean and natural, because the final poster composition will crop slightly into the lower portrait.",
+      "Avoid narrow points, mirrored side slivers, or abstract shape formation at the bottom edge of the pet.",
       "",
       "STRICT NEGATIVE RULES:",
       "- no full body",
