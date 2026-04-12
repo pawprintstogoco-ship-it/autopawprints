@@ -31,8 +31,9 @@ const FINAL_HEIGHT = 2400;
 const TITLE_SAFE_HEIGHT = 700;
 const OPENAI_RENDER_TIMEOUT_MS = 90_000;
 const OPENAI_IMAGE_DOWNLOAD_TIMEOUT_MS = 45_000;
-const BUST_EXTENSION_HEIGHT = 620;
-const PORTRAIT_BOTTOM_BLEED = 120;
+const BUST_EXTENSION_HEIGHT = 240;
+const PORTRAIT_BOTTOM_BLEED = 36;
+const MIN_BOTTOM_TAIL_ROWS = 28;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -136,8 +137,9 @@ async function buildPosterPng(
     })
     .png()
     .toBuffer();
-  const portraitWithBustBase = await createBustBaseExtension(alignedPortrait);
-  const portraitMetadata = await sharp(portraitWithBustBase).metadata();
+  const portraitWithOptionalExtension = await createBustBaseExtension(alignedPortrait);
+  const cleanedPortrait = await cleanupPortraitBottom(portraitWithOptionalExtension);
+  const portraitMetadata = await sharp(cleanedPortrait).metadata();
   const portraitWidth = portraitMetadata.width ?? artWidth;
   const portraitHeight = portraitMetadata.height ?? artHeight;
   const portraitLeft = artLeft + Math.round((artWidth - portraitWidth) / 2);
@@ -183,7 +185,7 @@ async function buildPosterPng(
   })
     .composite([
       { input: posterBackground },
-      { input: portraitWithBustBase, left: portraitLeft, top: portraitTop },
+      { input: cleanedPortrait, left: portraitLeft, top: portraitTop },
       { input: titleSafeBand },
       {
         input: firstLineOverlay.buffer,
@@ -768,7 +770,7 @@ async function createBustBaseExtension(source: Buffer) {
     return source;
   }
 
-  const lowerBandHeight = Math.max(220, Math.min(420, Math.round(height * 0.3)));
+  const lowerBandHeight = Math.max(160, Math.min(280, Math.round(height * 0.2)));
   const lowerBandTop = Math.max(0, height - lowerBandHeight);
   const lowerBand = await sharp(source)
     .extract({
@@ -781,19 +783,19 @@ async function createBustBaseExtension(source: Buffer) {
       fit: "fill",
       position: "top"
     })
-    .blur(1.4)
+    .blur(2.2)
     .modulate({
       brightness: 1.01,
-      saturation: 0.97
+      saturation: 0.94
     })
     .png()
     .toBuffer();
 
-  const chestCropWidth = Math.max(220, Math.min(Math.round(width * 0.58), width));
+  const chestCropWidth = Math.max(220, Math.min(Math.round(width * 0.5), width));
   const chestCropLeft = Math.max(0, Math.round((width - chestCropWidth) / 2));
-  const chestCropHeight = Math.max(220, Math.min(Math.round(height * 0.28), height));
+  const chestCropHeight = Math.max(160, Math.min(Math.round(height * 0.18), height));
   const chestCropTop = Math.max(0, height - chestCropHeight);
-  const chestExtensionWidth = Math.round(width * 0.78);
+  const chestExtensionWidth = Math.round(width * 0.72);
   const chestExtension = await sharp(source)
     .extract({
       left: chestCropLeft,
@@ -805,10 +807,10 @@ async function createBustBaseExtension(source: Buffer) {
       fit: "fill",
       position: "top"
     })
-    .blur(1)
+    .blur(1.8)
     .modulate({
       brightness: 1.02,
-      saturation: 0.96
+      saturation: 0.94
     })
     .png()
     .toBuffer();
@@ -817,16 +819,16 @@ async function createBustBaseExtension(source: Buffer) {
     <svg width="${width}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="underFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="white" stop-opacity="0.4"/>
-          <stop offset="18%" stop-color="white" stop-opacity="0.6"/>
-          <stop offset="100%" stop-color="white" stop-opacity="0.72"/>
+          <stop offset="0%" stop-color="white" stop-opacity="0.18"/>
+          <stop offset="24%" stop-color="white" stop-opacity="0.34"/>
+          <stop offset="100%" stop-color="white" stop-opacity="0.48"/>
         </linearGradient>
       </defs>
       <ellipse
         cx="${Math.round(width * 0.5)}"
-        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.62)}"
-        rx="${Math.round(width * 0.46)}"
-        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.5)}"
+        cy="${Math.round(BUST_EXTENSION_HEIGHT * 0.68)}"
+        rx="${Math.round(width * 0.42)}"
+        ry="${Math.round(BUST_EXTENSION_HEIGHT * 0.42)}"
         fill="url(#underFade)"
       />
     </svg>
@@ -836,25 +838,25 @@ async function createBustBaseExtension(source: Buffer) {
     <svg width="${chestExtensionWidth}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="chestFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="white" stop-opacity="0.72"/>
-          <stop offset="14%" stop-color="white" stop-opacity="0.94"/>
-          <stop offset="100%" stop-color="white" stop-opacity="1"/>
+          <stop offset="0%" stop-color="white" stop-opacity="0.3"/>
+          <stop offset="20%" stop-color="white" stop-opacity="0.62"/>
+          <stop offset="100%" stop-color="white" stop-opacity="0.78"/>
         </linearGradient>
       </defs>
       <path
-        d="M ${Math.round(chestExtensionWidth * 0.17)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.06)}
-           C ${Math.round(chestExtensionWidth * 0.07)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.3)},
-             ${Math.round(chestExtensionWidth * 0.05)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.72)},
-             ${Math.round(chestExtensionWidth * 0.23)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.98)}
-           C ${Math.round(chestExtensionWidth * 0.36)} ${Math.round(BUST_EXTENSION_HEIGHT * 1.03)},
-             ${Math.round(chestExtensionWidth * 0.64)} ${Math.round(BUST_EXTENSION_HEIGHT * 1.03)},
-             ${Math.round(chestExtensionWidth * 0.77)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.98)}
-           C ${Math.round(chestExtensionWidth * 0.95)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.72)},
-             ${Math.round(chestExtensionWidth * 0.93)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.3)},
-             ${Math.round(chestExtensionWidth * 0.83)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.06)}
-           C ${Math.round(chestExtensionWidth * 0.72)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.01)},
-             ${Math.round(chestExtensionWidth * 0.28)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.01)},
-             ${Math.round(chestExtensionWidth * 0.17)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.06)} Z"
+        d="M ${Math.round(chestExtensionWidth * 0.22)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.1)}
+           C ${Math.round(chestExtensionWidth * 0.14)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.28)},
+             ${Math.round(chestExtensionWidth * 0.12)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.66)},
+             ${Math.round(chestExtensionWidth * 0.26)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.94)}
+           C ${Math.round(chestExtensionWidth * 0.38)} ${Math.round(BUST_EXTENSION_HEIGHT * 1.02)},
+             ${Math.round(chestExtensionWidth * 0.62)} ${Math.round(BUST_EXTENSION_HEIGHT * 1.02)},
+             ${Math.round(chestExtensionWidth * 0.74)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.94)}
+           C ${Math.round(chestExtensionWidth * 0.88)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.66)},
+             ${Math.round(chestExtensionWidth * 0.86)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.28)},
+             ${Math.round(chestExtensionWidth * 0.78)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.1)}
+           C ${Math.round(chestExtensionWidth * 0.66)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.02)},
+             ${Math.round(chestExtensionWidth * 0.34)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.02)},
+             ${Math.round(chestExtensionWidth * 0.22)} ${Math.round(BUST_EXTENSION_HEIGHT * 0.1)} Z"
         fill="url(#chestFade)"
       />
     </svg>
@@ -870,11 +872,11 @@ async function createBustBaseExtension(source: Buffer) {
     .png()
     .toBuffer();
 
-  const overlap = Math.round(lowerBandHeight * 0.6);
+  const overlap = Math.round(lowerBandHeight * 0.72);
   const extendedHeight = height + BUST_EXTENSION_HEIGHT - overlap;
   const extensionTop = height - overlap;
   const chestLeft = Math.round((width - chestExtensionWidth) / 2);
-  const chestTop = extensionTop + Math.round(BUST_EXTENSION_HEIGHT * 0.02);
+  const chestTop = extensionTop + Math.round(BUST_EXTENSION_HEIGHT * 0.08);
 
   return sharp({
     create: {
@@ -901,6 +903,165 @@ async function createBustBaseExtension(source: Buffer) {
         top: 0
       }
     ])
+    .png()
+    .toBuffer();
+}
+
+async function cleanupPortraitBottom(source: Buffer) {
+  const trimmed = await trimUnsafeBottom(source);
+  return featherPortraitBottom(trimmed);
+}
+
+async function trimUnsafeBottom(source: Buffer) {
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  if (!info.width || !info.height) {
+    return source;
+  }
+
+  const rowStats = Array.from({ length: info.height }, (_, y) =>
+    getOpaqueRowStats(data, info.width, info.channels, y)
+  );
+  const lowerStart = Math.max(0, Math.floor(info.height * 0.45));
+  const lowerEnd = Math.max(lowerStart + 1, Math.floor(info.height * 0.88));
+  const stableRows = rowStats
+    .slice(lowerStart, lowerEnd)
+    .filter((row) => row.opaqueWidth > Math.round(info.width * 0.14))
+    .map((row) => row.opaqueWidth)
+    .sort((a, b) => b - a);
+
+  const stableChestWidth = stableRows[Math.min(6, stableRows.length - 1)] ?? 0;
+  if (!stableChestWidth) {
+    return source;
+  }
+
+  const narrowThreshold = Math.round(stableChestWidth * 0.58);
+  const spanThreshold = Math.round(stableChestWidth * 0.64);
+  const bottomOpaqueRow = findBottomOpaqueRow(rowStats);
+
+  if (bottomOpaqueRow < 0) {
+    return source;
+  }
+
+  let suspiciousRows = 0;
+  let cutTop = info.height;
+
+  for (let y = bottomOpaqueRow; y >= lowerStart; y -= 1) {
+    const row = rowStats[y];
+    const suspicious =
+      row.opaqueWidth === 0 ||
+      row.opaqueWidth < narrowThreshold ||
+      row.spanWidth < spanThreshold ||
+      row.segmentCount > 1;
+
+    if (suspicious) {
+      suspiciousRows += 1;
+      cutTop = y;
+      continue;
+    }
+
+    break;
+  }
+
+  if (suspiciousRows < MIN_BOTTOM_TAIL_ROWS || cutTop >= info.height - 1) {
+    return source;
+  }
+
+  const maxCrop = Math.round(info.height * 0.22);
+  const cropAmount = info.height - cutTop;
+  if (cropAmount <= 0) {
+    return source;
+  }
+
+  const targetHeight = cropAmount > maxCrop ? info.height - maxCrop : cutTop;
+  return sharp(source)
+    .extract({
+      left: 0,
+      top: 0,
+      width: info.width,
+      height: Math.max(1, targetHeight)
+    })
+    .png()
+    .toBuffer();
+}
+
+function findBottomOpaqueRow(
+  rows: Array<{ opaqueWidth: number; spanWidth: number; segmentCount: number }>
+) {
+  for (let y = rows.length - 1; y >= 0; y -= 1) {
+    if (rows[y]?.opaqueWidth) {
+      return y;
+    }
+  }
+
+  return -1;
+}
+
+function getOpaqueRowStats(data: Buffer, width: number, channels: number, y: number) {
+  let first = -1;
+  let last = -1;
+  let opaqueWidth = 0;
+  let segmentCount = 0;
+  let inSegment = false;
+
+  for (let x = 0; x < width; x += 1) {
+    const index = (y * width + x) * channels;
+    const alpha = data[index + 3] ?? 0;
+    const opaque = alpha > 18;
+
+    if (!opaque) {
+      inSegment = false;
+      continue;
+    }
+
+    opaqueWidth += 1;
+    if (first === -1) {
+      first = x;
+    }
+    last = x;
+    if (!inSegment) {
+      segmentCount += 1;
+      inSegment = true;
+    }
+  }
+
+  return {
+    opaqueWidth,
+    spanWidth: first === -1 || last === -1 ? 0 : last - first + 1,
+    segmentCount
+  };
+}
+
+async function featherPortraitBottom(source: Buffer) {
+  const metadata = await sharp(source).metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+
+  if (!width || !height) {
+    return source;
+  }
+
+  const fadeHeight = Math.max(80, Math.min(180, Math.round(height * 0.08)));
+  const fadeTop = Math.max(0, height - fadeHeight);
+  const mask = Buffer.from(`
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="white" stop-opacity="1"/>
+          <stop offset="72%" stop-color="white" stop-opacity="0.62"/>
+          <stop offset="100%" stop-color="white" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect width="${width}" height="${fadeTop}" fill="white"/>
+      <rect y="${fadeTop}" width="${width}" height="${fadeHeight}" fill="url(#bottomFade)"/>
+    </svg>
+  `);
+
+  return sharp(source)
+    .composite([{ input: mask, blend: "dest-in" }])
     .png()
     .toBuffer();
 }
