@@ -170,13 +170,13 @@ export function UploadForm({ token }: { token: string }) {
 
   const progressHeading =
     phase === "processing"
-      ? "Preparing your portrait"
+      ? "Capturing your pet's details"
       : phase === "complete"
       ? "Upload complete"
       : "Uploading your photo";
   const progressLabel =
     phase === "processing"
-      ? "Preparing your portrait and saving your order..."
+      ? "Capturing your pet's details for our artists..."
       : phase === "complete"
       ? "Upload complete. Refreshing your page..."
       : `Uploading your photo... ${uploadProgress}%`;
@@ -342,7 +342,7 @@ export function UploadForm({ token }: { token: string }) {
                 <h3>{progressLabel}</h3>
                 <p>
                   {phase === "processing"
-                    ? "This can take a moment while we save your photo and start the portrait workflow."
+                    ? "We're gathering the little details that help our artists make your portrait look purrfect."
                     : phase === "complete"
                     ? "Taking you to the updated order page now."
                     : "Hang tight while we transfer your image securely."}
