@@ -1,7 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChangeEvent, FormEvent, useId, useState, type CSSProperties } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useEffect,
+  useId,
+  useState,
+  type CSSProperties
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   DEFAULT_POSTER_BACKGROUND_STYLE,
@@ -14,20 +21,45 @@ import {
   type PosterFontStyle
 } from "@/lib/poster-styles";
 
+type UploadPhase = "idle" | "uploading" | "processing" | "complete";
+
 export function UploadForm({ token }: { token: string }) {
   const router = useRouter();
   const photoInputId = useId();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
+  const [phase, setPhase] = useState<UploadPhase>("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
   const [petNamePreview, setPetNamePreview] = useState("");
   const [selectedFontStyle, setSelectedFontStyle] =
     useState<PosterFontStyle>(DEFAULT_POSTER_FONT_STYLE);
-const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
-  useState<PosterBackgroundStyle>(DEFAULT_POSTER_BACKGROUND_STYLE);
+  const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
+    useState<PosterBackgroundStyle>(DEFAULT_POSTER_BACKGROUND_STYLE);
   const uploadTimeoutMs = 180000;
+  const isBusy = phase !== "idle";
+  const isOverlayVisible = phase === "uploading" || phase === "processing" || phase === "complete";
+
+  useEffect(() => {
+    if (phase !== "processing") {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setUploadProgress((current) => {
+        if (current >= 98) {
+          return current;
+        }
+
+        const remaining = 98 - current;
+        const step = Math.max(1, Math.round(remaining * 0.18));
+        return Math.min(98, current + step);
+      });
+    }, 180);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [phase]);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -40,8 +72,7 @@ const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
     const form = event.currentTarget;
     const formData = new FormData(form);
 
-    setIsSubmitting(true);
-    setIsComplete(false);
+    setPhase("uploading");
     setUploadProgress(0);
     setErrorMessage("");
 
@@ -50,12 +81,18 @@ const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
       request.open("POST", `/api/uploads/${token}`);
       request.responseType = "json";
       let settled = false;
+      let timedOut = false;
+      let timeoutHandle: number | null = null;
 
       const finish = () => {
         if (settled) {
           return;
         }
+
         settled = true;
+        if (timeoutHandle !== null) {
+          window.clearTimeout(timeoutHandle);
+        }
         resolve();
       };
 
@@ -64,14 +101,20 @@ const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
           return;
         }
 
-        setUploadProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+        const byteProgress = Math.round((progressEvent.loaded / progressEvent.total) * 90);
+        setPhase("uploading");
+        setUploadProgress(byteProgress);
+      });
+
+      request.upload.addEventListener("load", () => {
+        setPhase("processing");
+        setUploadProgress((current) => Math.max(current, 90));
       });
 
       request.addEventListener("load", () => {
         if (request.status >= 200 && request.status < 400) {
+          setPhase("complete");
           setUploadProgress(100);
-          setIsComplete(true);
-          setIsSubmitting(false);
           window.setTimeout(() => {
             router.replace(`/upload/${token}`);
             router.refresh();
@@ -87,188 +130,239 @@ const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
             : null;
 
         setErrorMessage(response?.error ?? fallback);
-        setIsComplete(false);
-        setIsSubmitting(false);
+        setPhase("idle");
         setUploadProgress(0);
         finish();
       });
 
       request.addEventListener("error", () => {
         setErrorMessage("Upload failed. Please check your connection and try again.");
-        setIsComplete(false);
-        setIsSubmitting(false);
+        setPhase("idle");
         setUploadProgress(0);
         finish();
       });
 
       request.addEventListener("abort", () => {
-        setErrorMessage("Upload was interrupted. Please try again.");
-        setIsComplete(false);
-        setIsSubmitting(false);
+        setErrorMessage(
+          timedOut
+            ? "Upload is taking longer than expected. Please try again in a moment."
+            : "Upload was interrupted. Please try again."
+        );
+        setPhase("idle");
         setUploadProgress(0);
         finish();
       });
 
       request.send(formData);
 
-      window.setTimeout(() => {
+      timeoutHandle = window.setTimeout(() => {
         if (!settled) {
-          setErrorMessage("Upload is taking longer than expected. Please try again in a moment.");
-          setIsComplete(false);
-          setIsSubmitting(false);
-          setUploadProgress(0);
+          timedOut = true;
           try {
             request.abort();
           } catch {
             // no-op
           }
-          finish();
         }
       }, uploadTimeoutMs);
     });
   }
 
+  const progressHeading =
+    phase === "processing"
+      ? "Preparing your portrait"
+      : phase === "complete"
+      ? "Upload complete"
+      : "Uploading your photo";
+  const progressLabel =
+    phase === "processing"
+      ? "Preparing your portrait and saving your order..."
+      : phase === "complete"
+      ? "Upload complete. Refreshing your page..."
+      : `Uploading your photo... ${uploadProgress}%`;
+
   return (
     <motion.form
-      className="uploadForm"
+      className={`uploadForm${isOverlayVisible ? " uploadFormIsBusy" : ""}`}
       onSubmit={handleSubmit}
+      aria-busy={isBusy}
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <AnimatedBlock delay={0.02} className="uploadFormNote">
-        Upload one photo to start your portrait review.
-      </AnimatedBlock>
+      <fieldset className="uploadFieldset" disabled={isBusy}>
+        <div className="uploadFormBody">
+          <AnimatedBlock delay={0.02} className="uploadFormNote">
+            Upload one photo to start your portrait review.
+          </AnimatedBlock>
 
-      <AnimatedBlock as="label" delay={0.08} className="uploadField">
-        <span className="uploadFieldLabel">Pet name</span>
-        <input
-          className="uploadTextInput"
-          type="text"
-          name="petName"
-          placeholder="Enter pet name"
-          onChange={(event) => setPetNamePreview(event.target.value)}
-          required
-        />
-      </AnimatedBlock>
+          <AnimatedBlock as="label" delay={0.08} className="uploadField">
+            <span className="uploadFieldLabel">Pet name</span>
+            <input
+              className="uploadTextInput"
+              type="text"
+              name="petName"
+              placeholder="Enter pet name"
+              onChange={(event) => setPetNamePreview(event.target.value)}
+              required
+            />
+          </AnimatedBlock>
 
-      <AnimatedBlock delay={0.14} className="uploadField">
-        <span className="uploadFieldLabel">Font style</span>
-        <div className="uploadStyleGrid" role="radiogroup" aria-label="Font style">
-          {POSTER_FONT_OPTIONS.map((option) => {
-            const checked = selectedFontStyle === option.id;
-            return (
-              <label
-                key={option.id}
-                className={`uploadStyleCard uploadFontCard${checked ? " isSelected" : ""}`}
-              >
-                <input
-                  className="uploadStyleInput"
-                  type="radio"
-                  name="fontStyle"
-                  value={option.id}
-                  checked={checked}
-                  onChange={() => setSelectedFontStyle(option.id)}
-                />
-                <span className="uploadStyleCardHeader">
-                  <span className="uploadStyleName">{option.label}</span>
-                </span>
-                <span
-                  className="uploadFontPreview"
-                  style={{
-                    fontFamily: option.previewFamily,
-                    color: option.previewColor
-                  }}
-                >
-                  Bella
-                </span>
-                <span className="uploadStyleDescription">{option.description}</span>
-              </label>
-            );
-          })}
+          <AnimatedBlock delay={0.14} className="uploadField">
+            <span className="uploadFieldLabel">Font style</span>
+            <div className="uploadStyleGrid" role="radiogroup" aria-label="Font style">
+              {POSTER_FONT_OPTIONS.map((option) => {
+                const checked = selectedFontStyle === option.id;
+                return (
+                  <label
+                    key={option.id}
+                    className={`uploadStyleCard uploadFontCard${checked ? " isSelected" : ""}`}
+                  >
+                    <input
+                      className="uploadStyleInput"
+                      type="radio"
+                      name="fontStyle"
+                      value={option.id}
+                      checked={checked}
+                      onChange={() => setSelectedFontStyle(option.id)}
+                    />
+                    <span className="uploadStyleCardHeader">
+                      <span className="uploadStyleName">{option.label}</span>
+                    </span>
+                    <span
+                      className="uploadFontPreview"
+                      style={{
+                        fontFamily: option.previewFamily,
+                        color: option.previewColor
+                      }}
+                    >
+                      Bella
+                    </span>
+                    <span className="uploadStyleDescription">{option.description}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </AnimatedBlock>
+
+          <AnimatedBlock delay={0.18} className="uploadField">
+            <span className="uploadFieldLabel">Background colour</span>
+            <div className="uploadColourGrid" role="radiogroup" aria-label="Background colour">
+              {POSTER_BACKGROUND_OPTIONS.map((option) => {
+                const checked = selectedBackgroundStyle === option.id;
+                return (
+                  <label
+                    key={option.id}
+                    className={`uploadStyleCard uploadColourCard${checked ? " isSelected" : ""}`}
+                  >
+                    <input
+                      className="uploadStyleInput"
+                      type="radio"
+                      name="backgroundStyle"
+                      value={option.id}
+                      checked={checked}
+                      onChange={() => setSelectedBackgroundStyle(option.id)}
+                    />
+                    <span
+                      className="uploadColourSwatch"
+                      style={{ backgroundColor: option.fill, borderColor: option.accent }}
+                      aria-hidden="true"
+                    />
+                    <span className="uploadSrOnly">{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </AnimatedBlock>
+
+          <AnimatedBlock delay={0.22} className="uploadField">
+            <span className="uploadFieldLabel">New photo</span>
+            <input
+              id={photoInputId}
+              className="uploadHiddenInput"
+              type="file"
+              name="photo"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              required
+              onChange={handleFileChange}
+            />
+            <label htmlFor={photoInputId} className="uploadDropzone">
+              <span className="uploadDropzoneIcon" aria-hidden="true">
+                +
+              </span>
+              <span className="uploadDropzoneTitle">{selectedFileName || "Tap to upload"}</span>
+              <span className="uploadDropzoneHint">
+                JPG, PNG, WEBP, or HEIC under 15 MB. Choose the clearest photo you have.
+              </span>
+            </label>
+          </AnimatedBlock>
+
+          <AnimatedBlock delay={0.26} className="uploadPosterPreview">
+            <PosterPreview
+              petName={petNamePreview}
+              fontStyle={selectedFontStyle}
+              backgroundStyle={selectedBackgroundStyle}
+            />
+          </AnimatedBlock>
+
+          <AnimatedBlock delay={0.3} className="uploadSubmitDock">
+            <motion.button
+              className="uploadSubmitButton"
+              type="submit"
+              disabled={isBusy}
+              whileHover={isBusy ? undefined : { y: -2, scale: 1.01 }}
+              whileTap={isBusy ? undefined : { scale: 0.99 }}
+            >
+              <span className="buttonContent">Submit Photo</span>
+            </motion.button>
+          </AnimatedBlock>
         </div>
-      </AnimatedBlock>
-
-      <AnimatedBlock delay={0.18} className="uploadField">
-        <span className="uploadFieldLabel">Background colour</span>
-        <div className="uploadColourGrid" role="radiogroup" aria-label="Background colour">
-          {POSTER_BACKGROUND_OPTIONS.map((option) => {
-            const checked = selectedBackgroundStyle === option.id;
-            return (
-              <label
-                key={option.id}
-                className={`uploadStyleCard uploadColourCard${checked ? " isSelected" : ""}`}
-              >
-                <input
-                  className="uploadStyleInput"
-                  type="radio"
-                  name="backgroundStyle"
-                  value={option.id}
-                  checked={checked}
-                  onChange={() => setSelectedBackgroundStyle(option.id)}
-                />
-                <span
-                  className="uploadColourSwatch"
-                  style={{ backgroundColor: option.fill, borderColor: option.accent }}
-                  aria-hidden="true"
-                />
-                <span className="uploadSrOnly">{option.label}</span>
-              </label>
-            );
-          })}
-        </div>
-      </AnimatedBlock>
-
-      <AnimatedBlock delay={0.22} className="uploadField">
-        <span className="uploadFieldLabel">New photo</span>
-        <input
-          id={photoInputId}
-          className="uploadHiddenInput"
-          type="file"
-          name="photo"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-          required
-          onChange={handleFileChange}
-        />
-        <label htmlFor={photoInputId} className="uploadDropzone">
-          <span className="uploadDropzoneIcon" aria-hidden="true">
-            +
-          </span>
-          <span className="uploadDropzoneTitle">{selectedFileName || "Tap to upload"}</span>
-          <span className="uploadDropzoneHint">
-            JPG, PNG, WEBP, or HEIC under 15 MB. Choose the clearest photo you have.
-          </span>
-        </label>
-      </AnimatedBlock>
-
-      <AnimatedBlock delay={0.26} className="uploadPosterPreview">
-        <PosterPreview
-          petName={petNamePreview}
-          fontStyle={selectedFontStyle}
-          backgroundStyle={selectedBackgroundStyle}
-        />
-      </AnimatedBlock>
+      </fieldset>
 
       <AnimatePresence initial={false}>
-        {isSubmitting || isComplete ? (
+        {isOverlayVisible ? (
           <motion.div
             key="progress"
-            className="uploadProgressCard"
+            className="uploadProcessingOverlay"
             aria-live="polite"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            role="status"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
-            <div className="progressBar" aria-hidden="true">
-              <motion.div
-                className="progressBarFill"
-                animate={{ width: `${uploadProgress}%` }}
-                transition={{ ease: "easeOut", duration: 0.2 }}
-              />
-            </div>
-            <div className="progressLabel">
-              {isComplete ? "Upload complete. Preparing your confirmation..." : `Uploading photo... ${uploadProgress}%`}
-            </div>
+            <motion.div
+              className="uploadProcessingCard"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            >
+              <span className="uploadProcessingSpinner" aria-hidden="true" />
+              <div className="uploadProcessingCopy">
+                <p className="uploadProcessingEyebrow">{progressHeading}</p>
+                <h3>{progressLabel}</h3>
+                <p>
+                  {phase === "processing"
+                    ? "This can take a moment while we save your photo and start the portrait workflow."
+                    : phase === "complete"
+                    ? "Taking you to the updated order page now."
+                    : "Hang tight while we transfer your image securely."}
+                </p>
+              </div>
+
+              <div className="uploadProgressCard">
+                <div className="progressBar uploadProgressBar" aria-hidden="true">
+                  <motion.div
+                    className="progressBarFill uploadProgressBarFill"
+                    animate={{ width: `${uploadProgress}%` }}
+                    transition={{ ease: "easeOut", duration: 0.25 }}
+                  />
+                </div>
+                <div className="progressLabel uploadProgressLabel">
+                  <span>{progressHeading}</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -287,27 +381,6 @@ const [selectedBackgroundStyle, setSelectedBackgroundStyle] =
           </motion.div>
         ) : null}
       </AnimatePresence>
-
-      <AnimatedBlock delay={0.3} className="uploadSubmitDock">
-        <motion.button
-          className="uploadSubmitButton"
-          type="submit"
-          disabled={isSubmitting || isComplete}
-          whileHover={isSubmitting || isComplete ? undefined : { y: -2, scale: 1.01 }}
-          whileTap={isSubmitting || isComplete ? undefined : { scale: 0.99 }}
-        >
-          {isSubmitting ? (
-            <span className="buttonContent">
-              <span className="spinner" aria-hidden="true" />
-              Uploading photo...
-            </span>
-        ) : isComplete ? (
-          <span className="buttonContent">Upload Complete</span>
-        ) : (
-          <span className="buttonContent">Submit Photo</span>
-        )}
-      </motion.button>
-      </AnimatedBlock>
     </motion.form>
   );
 }
