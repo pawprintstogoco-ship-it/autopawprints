@@ -1,0 +1,28 @@
+name: Render Worker
+on:
+  repository_dispatch:
+    types: [render-job]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Render Job
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_IMAGE_MODEL: ${{ secrets.OPENAI_IMAGE_MODEL }}
+          APP_URL: ${{ secrets.APP_URL }}
+          ETSY_SHOP_ID: ${{ secrets.ETSY_SHOP_ID }}
+          ETSY_PILOT_LISTING_ID: ${{ secrets.ETSY_PILOT_LISTING_ID }}
+        run: npx tsx scripts/worker-single.ts "${{ github.event.client_payload.renderJobId }}"

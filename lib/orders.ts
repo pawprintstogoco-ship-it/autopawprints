@@ -770,21 +770,15 @@ export async function storeCustomerUpload({
   });
 
   if (result.renderJob) {
-    const shouldProcessInline = shouldRunInlineJobs();
+    // Always use the queue. This allows the Vercel request to finish in ~2 seconds
+    // while the dedicated worker handles the 60-90s AI rendering in the background.
+    await enqueueRenderJob(result.renderJob.id);
 
-    if (deferInlineProcessing && shouldProcessInline) {
-      return {
-        upload: result.upload,
-        order: result.order,
-        renderJob: result.renderJob,
-        processingDeferred: true
-      };
-    }
-
-    if (shouldProcessInline) {
-      await processRenderJob(result.renderJob.id);
-    } else {
-      await enqueueRenderJob(result.renderJob.id);
+    // Trigger GitHub Action to handle the rendering worker for free (bypassing Vercel timeouts)
+    try {
+      await triggerGitHubRender(result.renderJob.id);
+    } catch (error) {
+      console.error("[render] failed to trigger github worker", error);
     }
   }
 
@@ -794,6 +788,44 @@ export async function storeCustomerUpload({
     renderJob: result.renderJob,
     processingDeferred: false
   };
+}
+
+/**
+ * Triggers a GitHub Action workflow to process a specific render job.
+ * Requires GITHUB_PAT, GITHUB_REPO_OWNER, and GITHUB_REPO_NAME in env.
+ */
+async function triggerGitHubRender(renderJobId: string) {
+  const { GITHUB_PAT, GITHUB_REPO_OWNER, GITHUB_REPO_NAME } = process.env;
+
+  if (!GITHUB_PAT || !GITHUB_REPO_OWNER || !GITHUB_REPO_NAME) {
+    console.warn("[render] skipping github worker trigger (missing config)");
+    return;
+  }
+
+  const response = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/dispatches`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${GITHUB_PAT}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        event_type: "render-job",
+        client_payload: {
+          renderJobId
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`GitHub trigger failed (${response.status}): ${text}`);
+  }
+
+  console.log(`[render] successfully triggered github worker for job ${renderJobId}`);
 }
 
 export async function processRenderJob(renderJobId: string) {
