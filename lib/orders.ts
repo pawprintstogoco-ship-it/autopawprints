@@ -632,6 +632,14 @@ export async function getOrderByUploadToken(token: string) {
       petName: String(upload.petName ?? ""),
       createdAt: toDate(upload.createdAt) ?? new Date(0)
     })),
+    previews: finalArtifacts
+      .map(({ artifact }) => artifact)
+      .filter((artifact) => String(artifact.kind ?? "") === "PREVIEW")
+      .map((artifact) => ({
+        id: String(artifact.id),
+        storageKey: String(artifact.storageKey ?? ""),
+        createdAt: toDate(artifact.createdAt) ?? new Date(0)
+      })),
     finalArtifacts: finalArtifacts
       .map(({ artifact }) => artifact)
       .filter((artifact) => String(artifact.kind ?? "") === "FINAL_PNG")

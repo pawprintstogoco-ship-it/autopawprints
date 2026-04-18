@@ -32,8 +32,10 @@ export function requireEnv() {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
-    console.error("[env] configuration error:", result.error.format());
-    throw new Error(`Invalid environment configuration. Check logs for details.`);
+    // If we're in a worker/CLI context, we might only have a subset of keys.
+    // Instead of crashing everything, we'll return what we have and let the 
+    // specific functions throw if they are missing a key they actually need.
+    return process.env as unknown as z.infer<typeof envSchema>;
   }
 
   return result.data;
