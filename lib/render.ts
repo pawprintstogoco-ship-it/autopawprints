@@ -210,13 +210,15 @@ async function createPortraitBase(source: Buffer, petName: string) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
+    console.warn("[render] missing OPENAI_API_KEY, using local fallback");
     return createFallbackPortrait(source);
   }
 
   try {
+    console.log(`[render] generating AI portrait for ${petName}...`);
     return await generateAiPortrait(source, petName);
   } catch (error) {
-    console.error("[render] falling back to local portrait render", error);
+    console.error("[render] AI generation failed, using local fallback", error);
     return createFallbackPortrait(source);
   }
 }

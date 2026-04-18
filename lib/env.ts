@@ -29,9 +29,12 @@ const envSchema = z.object({
 export const env = envSchema.safeParse(process.env);
 
 export function requireEnv() {
-  if (!env.success) {
-    throw new Error(`Invalid environment configuration: ${env.error.message}`);
+  const result = envSchema.safeParse(process.env);
+
+  if (!result.success) {
+    console.error("[env] configuration error:", result.error.format());
+    throw new Error(`Invalid environment configuration. Check logs for details.`);
   }
 
-  return env.data;
+  return result.data;
 }
