@@ -1,17 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { buildSafeImagePreview } from "@/lib/previews";
+import { buildSafeFallbackPreview, buildSafeImagePreview } from "@/lib/previews";
 import { getBuffer } from "@/lib/storage";
-
-function buildFallbackSvg(label: string) {
-  return Buffer.from(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
-      <rect width="800" height="800" fill="#f5f1ea" />
-      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#6b5a49" font-family="Arial, sans-serif" font-size="42">${label}</text>
-    </svg>
-  `);
-}
 
 function toBody(buffer: Buffer) {
   return new Uint8Array(buffer);
@@ -45,9 +36,10 @@ export async function GET(
       }
     });
   } catch {
-    return new NextResponse(toBody(buildFallbackSvg(`Upload for ${upload.petName}`)), {
+    const fallback = await buildSafeFallbackPreview(`Upload for ${upload.petName}`);
+    return new NextResponse(toBody(fallback), {
       headers: {
-        "content-type": "image/svg+xml",
+        "content-type": "image/png",
         "cache-control": "private, no-store",
         "x-content-type-options": "nosniff"
       }

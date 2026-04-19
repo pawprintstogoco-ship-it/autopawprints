@@ -192,6 +192,16 @@ model EtsyConnection {
   updatedAt       DateTime @updatedAt
 }
 
+model AdminSession {
+  id                String   @id @default(cuid())
+  email             String
+  sessionHash       String   @unique
+  createdAt         DateTime @default(now())
+  lastSeenAt        DateTime @default(now())
+  idleExpiresAt     DateTime
+  absoluteExpiresAt DateTime
+}
+
 model WebhookDelivery {
   id                String   @id @default(cuid())
   externalWebhookId String   @unique

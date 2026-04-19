@@ -1,3 +1,5 @@
+import { getRedisConnection } from "@/lib/queue";
+
 export function getSafeRedirectPath(value: string | null | undefined, fallback: string) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
     return fallback;
@@ -15,14 +17,19 @@ export function getSafeRedirectPath(value: string | null | undefined, fallback: 
   }
 }
 
-type RateLimitState = {
-  count: number;
-  resetAt: number;
-};
-
-const requestBuckets = new Map<string, RateLimitState>();
-
 export function getRequestIp(request: Request) {
+  const trustedHeaders = [
+    request.headers.get("x-real-ip"),
+    request.headers.get("x-vercel-forwarded-for"),
+    request.headers.get("cf-connecting-ip")
+  ];
+
+  for (const headerValue of trustedHeaders) {
+    if (headerValue?.trim()) {
+      return headerValue.trim();
+    }
+  }
+
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
     return forwarded.split(",")[0]?.trim() || "unknown";
@@ -31,31 +38,23 @@ export function getRequestIp(request: Request) {
   return request.headers.get("x-real-ip") || "unknown";
 }
 
-export function registerRateLimitedFailure(key: string, limit: number, windowMs: number) {
-  const now = Date.now();
-  const existing = requestBuckets.get(key);
+export async function registerRateLimitedFailure(key: string, limit: number, windowMs: number) {
+  const redis = getRedisConnection();
+  const bucketKey = `rate-limit:${key}`;
+  const count = await redis.incr(bucketKey);
 
-  if (!existing || existing.resetAt <= now) {
-    requestBuckets.set(key, {
-      count: 1,
-      resetAt: now + windowMs
-    });
-
-    return {
-      limited: false,
-      retryAfterSeconds: 0
-    };
+  if (count === 1) {
+    await redis.pexpire(bucketKey, windowMs);
   }
 
-  existing.count += 1;
-  requestBuckets.set(key, existing);
+  const ttlMs = await redis.pttl(bucketKey);
 
   return {
-    limited: existing.count >= limit,
-    retryAfterSeconds: Math.max(1, Math.ceil((existing.resetAt - now) / 1000))
+    limited: count >= limit,
+    retryAfterSeconds: Math.max(1, Math.ceil(Math.max(ttlMs, 1) / 1000))
   };
 }
 
-export function clearRateLimit(key: string) {
-  requestBuckets.delete(key);
+export async function clearRateLimit(key: string) {
+  await getRedisConnection().del(`rate-limit:${key}`);
 }

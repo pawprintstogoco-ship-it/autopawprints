@@ -17,7 +17,6 @@ export async function POST(request: Request) {
   const webhookId = request.headers.get("webhook-id");
   const webhookTimestamp = request.headers.get("webhook-timestamp");
   const signature = request.headers.get("webhook-signature");
-  const resourceHeader = request.headers.get("x-etsy-resource-url");
 
   if (
     !verifyEtsyWebhookSignature({
@@ -43,7 +42,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const envelope = normalizeWebhookEnvelope(payload as never, resourceHeader);
+    const envelope = normalizeWebhookEnvelope(payload as never);
     const env = requireEnv();
 
     if (envelope.eventType !== "ORDER_PAID") {

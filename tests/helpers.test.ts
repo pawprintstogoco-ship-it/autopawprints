@@ -134,4 +134,14 @@ describe("storage helpers", () => {
     expect(isAllowedUploadMimeType("image/svg+xml")).toBe(false);
     expect(MAX_UPLOAD_BYTES).toBe(15 * 1024 * 1024);
   });
+
+  it("renders rasterized fallback previews for untrusted labels", async () => {
+    const { buildSafeFallbackPreview } = await import("../lib/previews");
+    const fallback = await buildSafeFallbackPreview('</text><script>alert("xss")</script>');
+
+    expect(fallback.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    );
+    expect(fallback.includes(Buffer.from("<script>"))).toBe(false);
+  });
 });

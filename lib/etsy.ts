@@ -250,11 +250,18 @@ export async function refreshEtsyAccessTokenIfNeeded() {
 export async function fetchEtsyReceiptByResourceUrl(resourceUrl: string) {
   const { ETSY_API_BASE_URL, ETSY_CLIENT_ID } = requireEnv();
   const accessToken = await refreshEtsyAccessTokenIfNeeded();
-  const requestUrl = resourceUrl.startsWith("http")
-    ? resourceUrl
-    : `${ETSY_API_BASE_URL}${resourceUrl}`;
+  const apiBaseUrl = new URL(ETSY_API_BASE_URL);
+  const requestUrl = new URL(resourceUrl, apiBaseUrl);
 
-  const response = await fetch(requestUrl, {
+  if (requestUrl.origin !== apiBaseUrl.origin) {
+    throw new Error("Etsy resource URL must use the configured Etsy API origin");
+  }
+
+  if (!requestUrl.pathname.startsWith(apiBaseUrl.pathname)) {
+    throw new Error("Etsy resource URL must stay within the configured Etsy API base path");
+  }
+
+  const response = await fetch(requestUrl.toString(), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "x-api-key": ETSY_CLIENT_ID
@@ -296,11 +303,10 @@ export async function syncPilotDigitalSaleMessage(uploadUrlExample: string) {
 }
 
 export function normalizeWebhookEnvelope(
-  payload: EtsyWebhookEnvelope,
-  fallbackResourceUrl?: string | null
+  payload: EtsyWebhookEnvelope
 ) {
   const eventType = payload.event_name ?? payload.event_type ?? "unknown";
-  const resourceUrl = payload.resource_url ?? payload.resource ?? fallbackResourceUrl ?? null;
+  const resourceUrl = payload.resource_url ?? payload.resource ?? null;
   const shopId =
     payload.data?.shop_id !== undefined ? String(payload.data.shop_id) : null;
   const receiptId =

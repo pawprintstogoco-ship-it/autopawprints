@@ -32,16 +32,17 @@ export async function POST(request: Request) {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
   const { ADMIN_EMAIL, ADMIN_PASSWORD } = requireEnv();
-  const rateLimitKey = `admin-login:${getRequestIp(request)}`;
+  const rateLimitKey = `admin-login:${getRequestIp(request)}:${email.trim().toLowerCase() || "unknown"}`;
 
   if (email !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
-    const rateLimit = registerRateLimitedFailure(
+    const rateLimit = await registerRateLimitedFailure(
       rateLimitKey,
       LOGIN_RATE_LIMIT,
       LOGIN_RATE_LIMIT_WINDOW_MS
     );
 
     if (rateLimit.limited) {
+      console.warn(`[auth] admin login rate limited for ${email || "unknown"}`);
       return NextResponse.json(
         { error: "Too many login attempts. Please wait a few minutes and try again." },
         {
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
     });
   }
 
-  clearRateLimit(rateLimitKey);
+  await clearRateLimit(rateLimitKey);
   await createAdminSession(email);
   return NextResponse.redirect(new URL("/orders", request.url), {
     status: 303
