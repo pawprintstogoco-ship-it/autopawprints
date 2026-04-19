@@ -5,8 +5,6 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1),
   APP_URL: z.string().url(),
   ADMIN_EMAIL: z.string().email(),
-  ADMIN_PASSWORD: z.string().min(8).optional(),
-  SESSION_SECRET: z.string().min(16).optional(),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),

@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { requireEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { createToken, hashToken } from "@/lib/tokens";
@@ -11,33 +10,8 @@ const ADMIN_SESSION_IDLE_MS = 8 * 60 * 60 * 1000;
 const ADMIN_SESSION_ABSOLUTE_MS = 14 * 24 * 60 * 60 * 1000;
 const ADMIN_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
-function signLegacySession(email: string, sessionSecret: string) {
-  return createHmac("sha256", sessionSecret).update(email).digest("hex");
-}
-
-function createLegacyCookieValue(email: string, sessionSecret: string) {
-  return `${email}:${signLegacySession(email, sessionSecret)}`;
-}
-
-function isValidLegacyCookieValue(
-  value: string,
-  adminEmail: string,
-  sessionSecret: string
-) {
-  const [email, signature] = value.split(":");
-  if (!email || !signature || email !== adminEmail) {
-    return false;
-  }
-
-  const expected = signLegacySession(email, sessionSecret);
-  return (
-    signature.length === expected.length &&
-    timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
-  );
-}
-
 export async function createAdminSession(email: string) {
-  const { ADMIN_EMAIL, SESSION_SECRET } = requireEnv();
+  const { ADMIN_EMAIL } = requireEnv();
   if (email !== ADMIN_EMAIL) {
     throw new Error("Unauthorized admin email");
   }
@@ -66,18 +40,7 @@ export async function createAdminSession(email: string) {
     });
   } catch (error) {
     console.error("[auth] failed to create admin session", error);
-    if (!SESSION_SECRET) {
-      throw new Error("Admin session store unavailable");
-    }
-
-    cookieStore.set(SESSION_COOKIE, createLegacyCookieValue(email, SESSION_SECRET), {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      expires: idleExpiresAt
-    });
-    return;
+    throw new Error("Admin session store unavailable");
   }
 
   cookieStore.set(
@@ -137,7 +100,7 @@ export async function consumeAdminOAuthState() {
 }
 
 export async function requireAdminSession() {
-  const { ADMIN_EMAIL, SESSION_SECRET } = requireEnv();
+  const { ADMIN_EMAIL } = requireEnv();
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE)?.value;
 
@@ -155,18 +118,10 @@ export async function requireAdminSession() {
     });
   } catch (error) {
     console.error("[auth] failed to read admin session", error);
-    if (SESSION_SECRET && isValidLegacyCookieValue(sessionToken, ADMIN_EMAIL, SESSION_SECRET)) {
-      return { email: ADMIN_EMAIL };
-    }
-
     redirect("/login");
   }
 
   if (!session) {
-    if (SESSION_SECRET && isValidLegacyCookieValue(sessionToken, ADMIN_EMAIL, SESSION_SECRET)) {
-      return { email: ADMIN_EMAIL };
-    }
-
     redirect("/login");
   }
 
@@ -202,10 +157,6 @@ export async function requireAdminSession() {
     });
   } catch (error) {
     console.error("[auth] failed to refresh admin session", error);
-    if (SESSION_SECRET && isValidLegacyCookieValue(sessionToken, ADMIN_EMAIL, SESSION_SECRET)) {
-      return { email: ADMIN_EMAIL };
-    }
-
     redirect("/login");
   }
 

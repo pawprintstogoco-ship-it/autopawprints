@@ -9,8 +9,7 @@ export default async function LoginPage({
 }) {
   const query = (await searchParams) ?? {};
   const error = query.error ?? "";
-  const { ADMIN_PASSWORD } = requireEnv();
-  const showFallbackForm = Boolean(ADMIN_PASSWORD);
+  requireEnv();
 
   return (
     <main className="shell">
@@ -30,28 +29,6 @@ export default async function LoginPage({
           <a className="button" href="/api/admin/oauth/google">
             Sign in with Google
           </a>
-
-          {showFallbackForm ? (
-            <details className="card stack">
-              <summary className="muted" style={{ cursor: "pointer" }}>
-                Manual login
-              </summary>
-              <form className="stack" action="/api/admin/login" method="post">
-                <div className="eyebrow">Emergency fallback</div>
-                <label className="field">
-                  <span>Email</span>
-                  <input type="email" name="email" required />
-                </label>
-                <label className="field">
-                  <span>Password</span>
-                  <input type="password" name="password" required />
-                </label>
-                <button className="buttonSecondary" type="submit">
-                  Sign in with fallback password
-                </button>
-              </form>
-            </details>
-          ) : null}
         </div>
       </section>
     </main>
@@ -72,6 +49,8 @@ function getLoginErrorMessage(error: string) {
       return "That Google account is not allowed to access the admin area.";
     case "session":
       return "We could not create your admin session. Please try again.";
+    case "oauth_only":
+      return "Manual password login has been disabled. Please use Google sign-in.";
     default:
       return "Sign-in failed. Please try again.";
   }
