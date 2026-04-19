@@ -547,6 +547,8 @@ export async function getOrderById(orderId: string) {
     uploads: uploads.map(({ upload }) => ({
       id: String(upload.id),
       petName: String(upload.petName ?? ""),
+      fontStyle: posterFontStyleFromDb(upload.fontStyle),
+      backgroundStyle: posterBackgroundStyleFromDb(upload.backgroundStyle),
       originalName: String(upload.originalName ?? ""),
       blurScore:
         upload.blurScore === null || upload.blurScore === undefined

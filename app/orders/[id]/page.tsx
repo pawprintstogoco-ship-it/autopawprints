@@ -4,6 +4,10 @@ import { headers } from "next/headers";
 import { requireAdminSession } from "@/lib/auth";
 import { getOrderById } from "@/lib/orders";
 import { requireEnv } from "@/lib/env";
+import {
+  getPosterBackgroundOption,
+  getPosterFontOption
+} from "@/lib/poster-styles";
 import { getPublicFileUrl } from "@/lib/storage";
 import { ManualMessageTools } from "@/app/orders/[id]/manual-message-tools";
 import { OpsTopNav } from "@/app/orders/ops-top-nav";
@@ -161,6 +165,12 @@ export default async function OrderDetailPage({
                       >
                         {upload.originalName}
                       </a>
+                      <span className="muted">
+                        Font: {getPosterFontOption(upload.fontStyle).label}
+                      </span>
+                      <span className="muted">
+                        Background: {getPosterBackgroundOption(upload.backgroundStyle).label}
+                      </span>
                       <span className="mono">Blur {upload.blurScore ?? "n/a"}</span>
                     </div>
                   </div>
