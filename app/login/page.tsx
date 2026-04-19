@@ -1,5 +1,6 @@
 import { requireEnv } from "@/lib/env";
-import { isGoogleOAuthConfigured } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 
 export default async function LoginPage({
   searchParams
@@ -8,7 +9,6 @@ export default async function LoginPage({
 }) {
   const query = (await searchParams) ?? {};
   const error = query.error ?? "";
-  const oauthEnabled = isGoogleOAuthConfigured();
   const { ADMIN_PASSWORD } = requireEnv();
   const showFallbackForm = Boolean(ADMIN_PASSWORD);
 
@@ -27,19 +27,9 @@ export default async function LoginPage({
             </div>
           ) : null}
 
-          {oauthEnabled ? (
-            <a className="button" href="/api/admin/oauth/google">
-              Sign in with Google
-            </a>
-          ) : (
-            <div className="card stack">
-              <strong>Google admin sign-in is not configured.</strong>
-              <span className="muted">
-                Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
-                `GOOGLE_OAUTH_REDIRECT_URI` to enable OAuth.
-              </span>
-            </div>
-          )}
+          <a className="button" href="/api/admin/oauth/google">
+            Sign in with Google
+          </a>
 
           {showFallbackForm ? (
             <form className="stack" action="/api/admin/login" method="post">
