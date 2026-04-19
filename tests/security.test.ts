@@ -124,7 +124,7 @@ describe("admin session security", () => {
 
     await expect(requireAdminSession()).rejects.toThrow("redirect:/login");
     expect(adminSession.delete).toHaveBeenCalledTimes(1);
-    expect(cookieStore.get("pawprints_admin_session")).toBeUndefined();
+    expect(cookieStore.get("pawprints_admin_session")).toEqual({ value: "opaque-token" });
   });
 });
 

@@ -131,7 +131,6 @@ export async function requireAdminSession() {
       return { email: ADMIN_EMAIL };
     }
 
-    cookieStore.delete(SESSION_COOKIE);
     redirect("/login");
   }
 
@@ -140,7 +139,6 @@ export async function requireAdminSession() {
       return { email: ADMIN_EMAIL };
     }
 
-    cookieStore.delete(SESSION_COOKIE);
     redirect("/login");
   }
 
@@ -160,7 +158,6 @@ export async function requireAdminSession() {
     } catch (error) {
       console.error("[auth] failed to delete expired admin session", error);
     }
-    cookieStore.delete(SESSION_COOKIE);
     redirect("/login");
   }
 
@@ -181,17 +178,8 @@ export async function requireAdminSession() {
       return { email: ADMIN_EMAIL };
     }
 
-    cookieStore.delete(SESSION_COOKIE);
     redirect("/login");
   }
-
-  cookieStore.set(SESSION_COOKIE, sessionToken, {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: nextIdleExpiresAt
-  });
 
   return { email: session.email };
 }
