@@ -19,6 +19,11 @@ export function OpsTopNav({ active }: { active: (typeof navItems)[number]["key"]
           {item.label}
         </Link>
       ))}
+      <form action="/api/admin/logout" method="post">
+        <button type="submit" className="buttonSecondary">
+          Sign out
+        </button>
+      </form>
     </nav>
   );
 }
