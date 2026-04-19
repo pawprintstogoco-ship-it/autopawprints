@@ -156,7 +156,7 @@ export default async function OrderDetailPage({
                       />
                     </a>
                     <div className="stack">
-                      <strong>{upload.petName}</strong>
+                      <strong>Pet name: {upload.petName}</strong>
                       <a
                         href={`/api/admin/uploads/${upload.id}/thumbnail`}
                         target="_blank"
