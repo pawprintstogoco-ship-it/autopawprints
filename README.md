@@ -77,3 +77,4 @@ npm run seed:demo
 - The webhook route expects Etsy-style `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers and fetches the receipt resource from Etsy before creating the order.
 - The pilot is intentionally limited to `ETSY_PILOT_LISTING_ID`; non-pilot receipts are captured and flagged for manual handling.
 - Queue-backed render and delivery jobs are the recommended long-term production path, but only after a worker is running against the same Redis and database. Without that worker, hosted uploads must keep inline processing enabled.
+- Hosted Vercel builds intentionally do not run `prisma db push`. Production schema changes should be applied through the `Prisma Migrate` GitHub Actions workflow, which runs `prisma migrate deploy` against the configured `DATABASE_URL` secret.
