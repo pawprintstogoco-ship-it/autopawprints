@@ -6,6 +6,7 @@ const envSchema = z.object({
   APP_URL: z.string().url(),
   ADMIN_EMAIL: z.string().email(),
   ADMIN_PASSWORD: z.string().min(8),
+  SESSION_SECRET: z.string().min(16).optional(),
   STORAGE_ROOT: z.string().min(1),
   DELIVERY_LINK_TTL_HOURS: z.coerce.number().int().positive(),
   OPENAI_API_KEY: z.string().min(1).optional(),
