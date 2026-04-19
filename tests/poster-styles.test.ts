@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getTitleFontConfig } from "../lib/render";
 import {
   getPosterBackgroundOption,
   getPosterFontOption,
@@ -42,6 +43,17 @@ describe("poster styles", () => {
     expect(getPosterBackgroundOption("sky")).toMatchObject({
       label: "Sky blue",
       fill: expect.stringMatching(/^#/)
+    });
+  });
+
+  it("uses the real embedded font families during rendering", () => {
+    expect(getTitleFontConfig("script")).toMatchObject({
+      family: "Lobster",
+      filePath: expect.stringMatching(/assets[\\/]fonts[\\/]script\.ttf$/)
+    });
+    expect(getTitleFontConfig("site")).toMatchObject({
+      family: "Noto Sans",
+      filePath: expect.stringMatching(/assets[\\/]fonts[\\/]title\.ttf$/)
     });
   });
 });

@@ -554,6 +554,18 @@ function getScriptFontPath() {
   return path.join(process.cwd(), "assets", "fonts", "script.ttf");
 }
 
+export function getTitleFontConfig(fontStyle: PosterFontStyle) {
+  return fontStyle === "script"
+    ? {
+        family: "Lobster",
+        filePath: getScriptFontPath()
+      }
+    : {
+        family: "Noto Sans",
+        filePath: getTitleFontPath()
+      };
+}
+
 async function createTitleTextLayer(
   text: string,
   fontSize: number,
@@ -562,11 +574,12 @@ async function createTitleTextLayer(
   color: string,
   fontStyle: PosterFontStyle
 ) {
+  const titleFont = getTitleFontConfig(fontStyle);
   const rendered = await sharp({
     text: {
       text: `<span foreground="${color}">${escapePangoText(text)}</span>`,
-      font: `${fontStyle === "script" ? "PosterScript" : "Title"} ${fontSize}px`,
-      fontfile: fontStyle === "script" ? getScriptFontPath() : getTitleFontPath(),
+      font: `${titleFont.family} ${fontSize}px`,
+      fontfile: titleFont.filePath,
       width,
       height,
       align: "centre",
