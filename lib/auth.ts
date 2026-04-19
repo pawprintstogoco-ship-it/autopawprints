@@ -72,7 +72,7 @@ export async function createAdminSession(email: string) {
 
     cookieStore.set(SESSION_COOKIE, createLegacyCookieValue(email, SESSION_SECRET), {
       httpOnly: true,
-      sameSite: "strict",
+      sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       expires: idleExpiresAt
@@ -85,7 +85,7 @@ export async function createAdminSession(email: string) {
     sessionToken,
     {
       httpOnly: true,
-      sameSite: "strict",
+      sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       expires: idleExpiresAt
