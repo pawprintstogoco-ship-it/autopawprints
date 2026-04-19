@@ -61,7 +61,15 @@ export async function POST(request: Request) {
   }
 
   await clearRateLimit(rateLimitKey);
-  await createAdminSession(email);
+  try {
+    await createAdminSession(email);
+  } catch (error) {
+    console.error("[auth] admin login failed to create session", error);
+    return NextResponse.redirect(new URL("/login?error=session", request.url), {
+      status: 303
+    });
+  }
+
   return NextResponse.redirect(new URL("/orders", request.url), {
     status: 303
   });

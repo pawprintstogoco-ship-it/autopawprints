@@ -21,20 +21,25 @@ export async function createAdminSession(email: string) {
   const idleExpiresAt = new Date(now + ADMIN_SESSION_IDLE_MS);
   const absoluteExpiresAt = new Date(now + ADMIN_SESSION_ABSOLUTE_MS);
 
-  await prisma.adminSession.deleteMany({
-    where: {
-      email
-    }
-  });
+  try {
+    await prisma.adminSession.deleteMany({
+      where: {
+        email
+      }
+    });
 
-  await prisma.adminSession.create({
-    data: {
-      email,
-      sessionHash,
-      idleExpiresAt,
-      absoluteExpiresAt
-    }
-  });
+    await prisma.adminSession.create({
+      data: {
+        email,
+        sessionHash,
+        idleExpiresAt,
+        absoluteExpiresAt
+      }
+    });
+  } catch (error) {
+    console.error("[auth] failed to create admin session", error);
+    throw new Error("Admin session store unavailable");
+  }
 
   cookieStore.set(
     SESSION_COOKIE,
@@ -53,11 +58,15 @@ export async function clearAdminSession() {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE)?.value;
   if (sessionToken) {
-    await prisma.adminSession.deleteMany({
-      where: {
-        sessionHash: hashToken(sessionToken)
-      }
-    });
+    try {
+      await prisma.adminSession.deleteMany({
+        where: {
+          sessionHash: hashToken(sessionToken)
+        }
+      });
+    } catch (error) {
+      console.error("[auth] failed to clear admin session", error);
+    }
   }
   cookieStore.delete(SESSION_COOKIE);
 }
@@ -72,11 +81,18 @@ export async function requireAdminSession() {
   }
 
   const sessionHash = hashToken(sessionToken);
-  const session = await prisma.adminSession.findUnique({
-    where: {
-      sessionHash
-    }
-  });
+  let session;
+  try {
+    session = await prisma.adminSession.findUnique({
+      where: {
+        sessionHash
+      }
+    });
+  } catch (error) {
+    console.error("[auth] failed to read admin session", error);
+    cookieStore.delete(SESSION_COOKIE);
+    redirect("/login");
+  }
 
   if (!session) {
     cookieStore.delete(SESSION_COOKIE);
@@ -90,25 +106,35 @@ export async function requireAdminSession() {
     session.absoluteExpiresAt <= now;
 
   if (expired) {
-    await prisma.adminSession.delete({
-      where: {
-        sessionHash
-      }
-    });
+    try {
+      await prisma.adminSession.delete({
+        where: {
+          sessionHash
+        }
+      });
+    } catch (error) {
+      console.error("[auth] failed to delete expired admin session", error);
+    }
     cookieStore.delete(SESSION_COOKIE);
     redirect("/login");
   }
 
   const nextIdleExpiresAt = new Date(Date.now() + ADMIN_SESSION_IDLE_MS);
-  await prisma.adminSession.update({
-    where: {
-      sessionHash
-    },
-    data: {
-      lastSeenAt: now,
-      idleExpiresAt: nextIdleExpiresAt
-    }
-  });
+  try {
+    await prisma.adminSession.update({
+      where: {
+        sessionHash
+      },
+      data: {
+        lastSeenAt: now,
+        idleExpiresAt: nextIdleExpiresAt
+      }
+    });
+  } catch (error) {
+    console.error("[auth] failed to refresh admin session", error);
+    cookieStore.delete(SESSION_COOKIE);
+    redirect("/login");
+  }
 
   cookieStore.set(SESSION_COOKIE, sessionToken, {
     httpOnly: true,
