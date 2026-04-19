@@ -32,6 +32,11 @@ export async function POST(request: Request) {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
   const { ADMIN_EMAIL, ADMIN_PASSWORD } = requireEnv();
+  if (!ADMIN_PASSWORD) {
+    return NextResponse.redirect(new URL("/login?error=oauth_config", request.url), {
+      status: 303
+    });
+  }
   const rateLimitKey = `admin-login:${getRequestIp(request)}:${email.trim().toLowerCase() || "unknown"}`;
 
   if (email !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {

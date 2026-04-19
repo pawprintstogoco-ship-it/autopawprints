@@ -29,6 +29,10 @@ beforeEach(() => {
   process.env.ADMIN_EMAIL = "owner@pawprintsca.com";
   process.env.ADMIN_PASSWORD = "password123";
   process.env.SESSION_SECRET = "12345678901234567890";
+  process.env.GOOGLE_CLIENT_ID = "google-client";
+  process.env.GOOGLE_CLIENT_SECRET = "google-secret";
+  process.env.GOOGLE_OAUTH_REDIRECT_URI =
+    "http://localhost:3010/api/admin/oauth/google/callback";
   process.env.OPENAI_API_KEY = "test-key";
   process.env.STORAGE_ROOT = "./storage";
   process.env.DELIVERY_LINK_TTL_HOURS = "168";
@@ -125,6 +129,44 @@ describe("admin session security", () => {
     await expect(requireAdminSession()).rejects.toThrow("redirect:/login");
     expect(adminSession.delete).toHaveBeenCalledTimes(1);
     expect(cookieStore.get("pawprints_admin_session")).toEqual({ value: "opaque-token" });
+  });
+
+  it("rejects Google OAuth callbacks for the wrong email address", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "google-access-token",
+          token_type: "Bearer"
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          email: "someoneelse@example.com",
+          email_verified: true
+        })
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.doMock("@/lib/auth", () => ({
+      isGoogleOAuthConfigured: () => true,
+      consumeAdminOAuthState: vi.fn().mockResolvedValue("expected-state"),
+      createAdminSession: vi.fn()
+    }));
+
+    const { GET } = await import("../app/api/admin/oauth/google/callback/route");
+    const response = await GET(
+      new Request(
+        "http://localhost:3010/api/admin/oauth/google/callback?code=auth-code&state=expected-state"
+      )
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3010/login?error=oauth_email"
+    );
   });
 });
 

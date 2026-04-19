@@ -6,8 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { createToken, hashToken } from "@/lib/tokens";
 
 const SESSION_COOKIE = "pawprints_admin_session";
+const OAUTH_STATE_COOKIE = "pawprints_admin_oauth_state";
 const ADMIN_SESSION_IDLE_MS = 8 * 60 * 60 * 1000;
 const ADMIN_SESSION_ABSOLUTE_MS = 14 * 24 * 60 * 60 * 1000;
+const ADMIN_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 function signLegacySession(email: string, sessionSecret: string) {
   return createHmac("sha256", sessionSecret).update(email).digest("hex");
@@ -106,6 +108,32 @@ export async function clearAdminSession() {
     }
   }
   cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(OAUTH_STATE_COOKIE);
+}
+
+export function isGoogleOAuthConfigured() {
+  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI } = requireEnv();
+  return Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_OAUTH_REDIRECT_URI);
+}
+
+export async function createAdminOAuthState() {
+  const cookieStore = await cookies();
+  const state = createToken(32);
+  cookieStore.set(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: new Date(Date.now() + ADMIN_OAUTH_STATE_TTL_MS)
+  });
+  return state;
+}
+
+export async function consumeAdminOAuthState() {
+  const cookieStore = await cookies();
+  const state = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
+  cookieStore.delete(OAUTH_STATE_COOKIE);
+  return state;
 }
 
 export async function requireAdminSession() {
