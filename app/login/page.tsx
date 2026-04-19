@@ -32,20 +32,25 @@ export default async function LoginPage({
           </a>
 
           {showFallbackForm ? (
-            <form className="stack" action="/api/admin/login" method="post">
-              <div className="eyebrow">Emergency fallback</div>
-              <label className="field">
-                <span>Email</span>
-                <input type="email" name="email" required />
-              </label>
-              <label className="field">
-                <span>Password</span>
-                <input type="password" name="password" required />
-              </label>
-              <button className="buttonSecondary" type="submit">
-                Sign in with fallback password
-              </button>
-            </form>
+            <details className="card stack">
+              <summary className="muted" style={{ cursor: "pointer" }}>
+                Manual login
+              </summary>
+              <form className="stack" action="/api/admin/login" method="post">
+                <div className="eyebrow">Emergency fallback</div>
+                <label className="field">
+                  <span>Email</span>
+                  <input type="email" name="email" required />
+                </label>
+                <label className="field">
+                  <span>Password</span>
+                  <input type="password" name="password" required />
+                </label>
+                <button className="buttonSecondary" type="submit">
+                  Sign in with fallback password
+                </button>
+              </form>
+            </details>
           ) : null}
         </div>
       </section>
