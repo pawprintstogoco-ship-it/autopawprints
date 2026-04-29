@@ -23,6 +23,10 @@ import {
 
 type UploadPhase = "idle" | "uploading" | "processing" | "complete";
 
+const MAX_DIRECT_UPLOAD_BYTES = 4 * 1024 * 1024;
+const TARGET_OPTIMIZED_UPLOAD_BYTES = 3.25 * 1024 * 1024;
+const MAX_OPTIMIZED_IMAGE_EDGE = 1800;
+
 export function UploadForm({ token }: { token: string }) {
   const router = useRouter();
   const photoInputId = useId();
@@ -71,10 +75,25 @@ export function UploadForm({ token }: { token: string }) {
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const photo = formData.get("photo");
 
     setPhase("uploading");
     setUploadProgress(0);
     setErrorMessage("");
+
+    if (photo instanceof File) {
+      try {
+        const preparedPhoto = await preparePhotoForUpload(photo);
+        formData.set("photo", preparedPhoto, preparedPhoto.name);
+      } catch {
+        setErrorMessage(
+          "We couldn't prepare that photo for upload. Please try a smaller JPG or PNG image."
+        );
+        setPhase("idle");
+        setUploadProgress(0);
+        return;
+      }
+    }
 
     await new Promise<void>((resolve) => {
       const request = new XMLHttpRequest();
@@ -292,7 +311,7 @@ export function UploadForm({ token }: { token: string }) {
               </span>
               <span className="uploadDropzoneTitle">{selectedFileName || "Tap to upload"}</span>
               <span className="uploadDropzoneHint">
-                JPG, PNG, WEBP, or HEIC under 15 MB. Choose the clearest photo you have.
+                JPG, PNG, WEBP, or HEIC. Large photos are optimized before upload.
               </span>
             </label>
           </AnimatedBlock>
@@ -383,6 +402,88 @@ export function UploadForm({ token }: { token: string }) {
       </AnimatePresence>
     </motion.form>
   );
+}
+
+async function preparePhotoForUpload(file: File) {
+  if (file.size <= MAX_DIRECT_UPLOAD_BYTES) {
+    return file;
+  }
+
+  const image = await loadImage(file);
+  let maxEdge = MAX_OPTIMIZED_IMAGE_EDGE;
+  let quality = 0.86;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Could not prepare image");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+    const blob = await canvasToBlob(canvas, quality);
+
+    if (blob.size <= TARGET_OPTIMIZED_UPLOAD_BYTES || attempt === 7) {
+      return new File([blob], toJpegFileName(file.name), {
+        type: "image/jpeg",
+        lastModified: Date.now()
+      });
+    }
+
+    if (quality > 0.7) {
+      quality -= 0.08;
+    } else {
+      quality = 0.82;
+      maxEdge = Math.max(1200, Math.round(maxEdge * 0.82));
+    }
+  }
+
+  return file;
+}
+
+function loadImage(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not load image"));
+    };
+    image.src = url;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+
+        reject(new Error("Could not encode image"));
+      },
+      "image/jpeg",
+      quality
+    );
+  });
+}
+
+function toJpegFileName(fileName: string) {
+  const baseName = fileName.replace(/\.[^.]+$/, "");
+  return `${baseName || "pet-photo"}.jpg`;
 }
 
 function PosterPreview({
