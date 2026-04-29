@@ -1132,6 +1132,11 @@ export async function rerenderOrder(
     await processRenderJob(renderJob.id);
   } else {
     await enqueueRenderJob(renderJob.id);
+    try {
+      await triggerGitHubRender(renderJob.id);
+    } catch (error) {
+      console.error("[render] failed to trigger github worker", error);
+    }
   }
   return {
     renderJob,
