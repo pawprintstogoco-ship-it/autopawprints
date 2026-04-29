@@ -28,12 +28,21 @@ export type RenderOutput = {
 
 const FINAL_WIDTH = 1800;
 const FINAL_HEIGHT = 2400;
-const TITLE_SAFE_HEIGHT = 700;
+const TITLE_BAND_TOP = 120;
+const TITLE_BAND_HEIGHT = 520;
+const TITLE_SAFE_HEIGHT = TITLE_BAND_TOP + TITLE_BAND_HEIGHT;
+const TITLE_SIDE_MARGIN = 180;
+const PORTRAIT_AREA_TOP = 640;
+const PORTRAIT_AREA_WIDTH = 1480;
+const PORTRAIT_AREA_HEIGHT = FINAL_HEIGHT - PORTRAIT_AREA_TOP + 92;
 const OPENAI_RENDER_TIMEOUT_MS = 90_000;
 const OPENAI_IMAGE_DOWNLOAD_TIMEOUT_MS = 45_000;
 const BUST_EXTENSION_HEIGHT = 240;
-const PORTRAIT_BOTTOM_BLEED = 36;
+const PORTRAIT_BOTTOM_BLEED = 92;
 const MIN_BOTTOM_TAIL_ROWS = 28;
+const OUTER_CONTOUR_ALPHA_THRESHOLD = 28;
+const OUTER_CONTOUR_DARKNESS_THRESHOLD = 72;
+const OUTER_CONTOUR_NEUTRAL_THRESHOLD = 48;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -100,16 +109,17 @@ async function buildPosterPng(
     backgroundStyle: PosterBackgroundStyle;
   }
 ) {
-  const artWidth = 1440;
-  const artHeight = 1700;
+  const artWidth = PORTRAIT_AREA_WIDTH;
+  const artHeight = PORTRAIT_AREA_HEIGHT;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
-  const artTop = 700;
+  const artTop = PORTRAIT_AREA_TOP;
   const title = buildTitleLayout(petName, fontStyle);
   const background = getPosterBackgroundOption(backgroundStyle);
   const titleFont = getPosterFontOption(fontStyle);
   const cleanedPortraitBase = await preparePortraitForComposition(portraitBase);
+  const deoutlinedPortraitBase = await cleanPortraitOuterContour(cleanedPortraitBase);
 
-  const trimmedPortraitBase = await sharp(cleanedPortraitBase)
+  const trimmedPortraitBase = await sharp(deoutlinedPortraitBase)
     .trim({
       background: { r: 0, g: 0, b: 0, alpha: 0 },
       threshold: 8
@@ -137,7 +147,8 @@ async function buildPosterPng(
     })
     .png()
     .toBuffer();
-  const portraitWithOptionalExtension = await createBustBaseExtension(alignedPortrait);
+  const deoutlinedAlignedPortrait = await cleanPortraitOuterContour(alignedPortrait);
+  const portraitWithOptionalExtension = await createBustBaseExtension(deoutlinedAlignedPortrait);
   const cleanedPortrait = await cleanupPortraitBottom(portraitWithOptionalExtension);
   const portraitMetadata = await sharp(cleanedPortrait).metadata();
   const portraitWidth = portraitMetadata.width ?? artWidth;
@@ -159,7 +170,7 @@ async function buildPosterPng(
   const firstLineOverlay = await createTitleTextLayer(
     title.firstLine,
     title.fontSize,
-    FINAL_WIDTH - 180,
+    FINAL_WIDTH - TITLE_SIDE_MARGIN,
     title.secondLine ? 170 : 200,
     titleFont.previewColor,
     fontStyle
@@ -168,7 +179,7 @@ async function buildPosterPng(
     ? await createTitleTextLayer(
         title.secondLine,
         title.secondLineFontSize,
-        FINAL_WIDTH - 180,
+        FINAL_WIDTH - TITLE_SIDE_MARGIN,
         170,
         titleFont.previewColor,
         fontStyle
@@ -275,6 +286,9 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "Always compose as a frontal or slight three-quarter FRONTAL bust shot.",
       "The entire head must be fully visible, including BOTH ear tips with comfortable margin around them.",
       "The full upper chest / shoulders must be visible within the canvas, and the chest should feel broad and connected.",
+      "Keep the pet centered horizontally in the transparent asset.",
+      "Compose the asset so the eyes sit slightly above the vertical midpoint of the pet cutout, allowing the final poster to align the eyes near the poster's horizontal center line.",
+      "The bust must extend downward enough for the final poster to hard-crop through the lower chest at the bottom edge.",
       "Do NOT crop off ear tips, head sides, or shoulder edges.",
       "Do NOT zoom out to include the full body, legs, paws, or too much torso.",
       "The head should be large and prominent in frame, but still fully contained inside the canvas.",
@@ -296,7 +310,8 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "The result should feel elegant, editorial, refined, and tastefully stylized rather than cartoony.",
       "Use clean shapes and controlled simplification, but keep natural anatomy, believable facial proportions, and true expression.",
       "Shading should be soft and restrained, with subtle tonal transitions rather than glossy cartoon airbrushing.",
-      "Edges should be clean, but do not use thick mascot outlines, sticker-like contouring, or comic-book linework.",
+      "Edges should be natural fur edges only, without any deliberate outline stroke.",
+      "Do not use black contour lines, inked perimeter lines, mascot outlines, sticker-like contouring, vector borders, or comic-book linework.",
       "This should feel like a polished custom portrait print, not a children's-book illustration, mascot logo, or exaggerated cartoon.",
       "Retain layered fur detail and clear feature definition in the eyes, nose, muzzle, forehead, and fur transitions.",
       "Do not flatten, over-smooth, or oversimplify important fur structure.",
@@ -324,10 +339,11 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "OUTPUT FORMAT (VERY IMPORTANT):",
       "Return ONLY the pet portrait cutout on a transparent background.",
       "No poster template, no frame, no border, no background block, and no blank card area.",
+      "Do not include the pet name, typography, title area, guide lines, background shadow, or any poster composition in the generated image.",
       "The lower chest / fur can continue toward the bottom edge of the asset, but there must be no text or banner.",
       "The portrait asset should reach low enough that the app can place it flush to the bottom of the final poster.",
       "The bottom of the bust should stay visually full and connected, with enough chest and fur volume to fill the lower poster area cleanly.",
-      "Keep the bust ending clean and natural, because the final poster composition will crop slightly into the lower portrait.",
+      "Keep the bust ending clean and natural, because the final poster composition will hard-crop slightly into the lower portrait.",
       "Avoid narrow points, mirrored side slivers, or abstract shape formation at the bottom edge of the pet.",
       "",
       "STRICT NEGATIVE RULES:",
@@ -346,12 +362,18 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "- no caption box",
       "- no white plaque",
       "- no poster border",
+      "- no black outline",
+      "- no inked edge",
+      "- no contour stroke",
+      "- no vector edge",
+      "- no sticker border",
       "- no decorative elements",
       "- no exaggerated stylization",
       "- no mascot look",
       "- no sticker look",
       "- no children's-book illustration look",
       "- no thick black outline treatment",
+      "- no thin black outline treatment",
       "- no overly glossy cartoon shading",
       "- no generic breed icon rendering",
       "- no generic dog-face simplification",
@@ -499,7 +521,21 @@ function buildArtifactBaseName(name: string) {
   return `${safeName}_${date}_${time}`;
 }
 
-function buildTitleLayout(name: string, fontStyle: PosterFontStyle) {
+export function getPosterLayoutConfig() {
+  return {
+    finalWidth: FINAL_WIDTH,
+    finalHeight: FINAL_HEIGHT,
+    titleBandTop: TITLE_BAND_TOP,
+    titleBandHeight: TITLE_BAND_HEIGHT,
+    titleSafeHeight: TITLE_SAFE_HEIGHT,
+    portraitAreaTop: PORTRAIT_AREA_TOP,
+    portraitAreaWidth: PORTRAIT_AREA_WIDTH,
+    portraitAreaHeight: PORTRAIT_AREA_HEIGHT,
+    portraitBottomBleed: PORTRAIT_BOTTOM_BLEED
+  };
+}
+
+export function buildTitleLayout(name: string, fontStyle: PosterFontStyle) {
   const displayName = formatDisplayName(name, fontStyle);
   const words = displayName.split(/\s+/).filter(Boolean);
   const shouldSplit =
@@ -518,7 +554,7 @@ function buildTitleLayout(name: string, fontStyle: PosterFontStyle) {
           ? 132
           : 148,
       secondLineFontSize: 0,
-      firstLineTop: fontStyle === "script" ? 142 : 132,
+      firstLineTop: fontStyle === "script" ? 228 : 220,
       secondLineTop: 0
     };
   }
@@ -532,8 +568,8 @@ function buildTitleLayout(name: string, fontStyle: PosterFontStyle) {
     secondLine,
     fontSize: fontStyle === "script" ? 136 : 110,
     secondLineFontSize: fontStyle === "script" ? 136 : 110,
-    firstLineTop: fontStyle === "script" ? 116 : 104,
-    secondLineTop: fontStyle === "script" ? 254 : 228
+    firstLineTop: fontStyle === "script" ? 164 : 150,
+    secondLineTop: fontStyle === "script" ? 314 : 288
   };
 }
 
@@ -634,6 +670,42 @@ async function preparePortraitForComposition(source: Buffer) {
   return removeFlatBackground(safeSource);
 }
 
+export async function cleanPortraitOuterContour(source: Buffer) {
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const output = Buffer.from(data);
+  const channels = info.channels;
+
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const index = (y * info.width + x) * channels;
+      const alpha = data[index + 3] ?? 0;
+
+      if (
+        alpha <= OUTER_CONTOUR_ALPHA_THRESHOLD ||
+        !isBoundaryPixel(data, info.width, info.height, channels, x, y) ||
+        !isDarkNeutralPixel(data[index] ?? 0, data[index + 1] ?? 0, data[index + 2] ?? 0)
+      ) {
+        continue;
+      }
+
+      output[index + 3] = Math.min(alpha, Math.round(alpha * 0.22));
+    }
+  }
+
+  return sharp(output, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels
+    }
+  })
+    .png()
+    .toBuffer();
+}
+
 async function hasTransparentPixels(source: Buffer) {
   const image = sharp(source);
   const metadata = await image.metadata();
@@ -716,6 +788,43 @@ function sampleCornerColor(data: Buffer, width: number, height: number, channels
 
 function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number) {
   return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
+}
+
+function isBoundaryPixel(
+  data: Buffer,
+  width: number,
+  height: number,
+  channels: number,
+  x: number,
+  y: number
+) {
+  for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+    for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+      if (offsetX === 0 && offsetY === 0) {
+        continue;
+      }
+
+      const neighborX = x + offsetX;
+      const neighborY = y + offsetY;
+
+      if (neighborX < 0 || neighborX >= width || neighborY < 0 || neighborY >= height) {
+        return true;
+      }
+
+      const neighborIndex = (neighborY * width + neighborX) * channels;
+      if ((data[neighborIndex + 3] ?? 0) <= OUTER_CONTOUR_ALPHA_THRESHOLD) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function isDarkNeutralPixel(r: number, g: number, b: number) {
+  const brightness = (r + g + b) / 3;
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+  return brightness < OUTER_CONTOUR_DARKNESS_THRESHOLD && chroma < OUTER_CONTOUR_NEUTRAL_THRESHOLD;
 }
 
 async function cropBottomBanner(source: Buffer) {
@@ -835,9 +944,9 @@ async function createBustBaseExtension(source: Buffer) {
     <svg width="${width}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="underFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="white" stop-opacity="0.18"/>
-          <stop offset="24%" stop-color="white" stop-opacity="0.34"/>
-          <stop offset="100%" stop-color="white" stop-opacity="0.48"/>
+          <stop offset="0%" stop-color="white" stop-opacity="0.28"/>
+          <stop offset="24%" stop-color="white" stop-opacity="0.62"/>
+          <stop offset="100%" stop-color="white" stop-opacity="0.92"/>
         </linearGradient>
       </defs>
       <ellipse
@@ -854,9 +963,9 @@ async function createBustBaseExtension(source: Buffer) {
     <svg width="${chestExtensionWidth}" height="${BUST_EXTENSION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="chestFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="white" stop-opacity="0.3"/>
-          <stop offset="20%" stop-color="white" stop-opacity="0.62"/>
-          <stop offset="100%" stop-color="white" stop-opacity="0.78"/>
+          <stop offset="0%" stop-color="white" stop-opacity="0.5"/>
+          <stop offset="20%" stop-color="white" stop-opacity="0.86"/>
+          <stop offset="100%" stop-color="white" stop-opacity="1"/>
         </linearGradient>
       </defs>
       <path
@@ -924,8 +1033,7 @@ async function createBustBaseExtension(source: Buffer) {
 }
 
 async function cleanupPortraitBottom(source: Buffer) {
-  const trimmed = await trimUnsafeBottom(source);
-  return featherPortraitBottom(trimmed);
+  return trimUnsafeBottom(source);
 }
 
 async function trimUnsafeBottom(source: Buffer) {
@@ -1051,33 +1159,3 @@ function getOpaqueRowStats(data: Buffer, width: number, channels: number, y: num
   };
 }
 
-async function featherPortraitBottom(source: Buffer) {
-  const metadata = await sharp(source).metadata();
-  const width = metadata.width ?? 0;
-  const height = metadata.height ?? 0;
-
-  if (!width || !height) {
-    return source;
-  }
-
-  const fadeHeight = Math.max(80, Math.min(180, Math.round(height * 0.08)));
-  const fadeTop = Math.max(0, height - fadeHeight);
-  const mask = Buffer.from(`
-    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="white" stop-opacity="1"/>
-          <stop offset="72%" stop-color="white" stop-opacity="0.62"/>
-          <stop offset="100%" stop-color="white" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      <rect width="${width}" height="${fadeTop}" fill="white"/>
-      <rect y="${fadeTop}" width="${width}" height="${fadeHeight}" fill="url(#bottomFade)"/>
-    </svg>
-  `);
-
-  return sharp(source)
-    .composite([{ input: mask, blend: "dest-in" }])
-    .png()
-    .toBuffer();
-}
