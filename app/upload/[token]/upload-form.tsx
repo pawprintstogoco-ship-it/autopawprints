@@ -311,7 +311,7 @@ export function UploadForm({ token }: { token: string }) {
               </span>
               <span className="uploadDropzoneTitle">{selectedFileName || "Tap to upload"}</span>
               <span className="uploadDropzoneHint">
-                JPG, PNG, WEBP, or HEIC. Large photos are optimized before upload.
+                JPG, PNG, WEBP, or HEIC under 4.5 MB.
               </span>
             </label>
           </AnimatedBlock>

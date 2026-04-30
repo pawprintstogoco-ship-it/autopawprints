@@ -158,7 +158,7 @@ export default async function OrderDetailPage({
                     <div className="stack">
                       <strong>Pet name: {upload.petName}</strong>
                       <a
-                        href={`/api/admin/uploads/${upload.id}/thumbnail`}
+                        href={getPublicFileUrl(upload.storageKey)}
                         target="_blank"
                         rel="noreferrer"
                         className="opsUploadFileLink"

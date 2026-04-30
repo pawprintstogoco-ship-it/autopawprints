@@ -550,6 +550,7 @@ export async function getOrderById(orderId: string) {
       fontStyle: posterFontStyleFromDb(upload.fontStyle),
       backgroundStyle: posterBackgroundStyleFromDb(upload.backgroundStyle),
       originalName: String(upload.originalName ?? ""),
+      storageKey: String(upload.storageKey ?? ""),
       blurScore:
         upload.blurScore === null || upload.blurScore === undefined
           ? null
