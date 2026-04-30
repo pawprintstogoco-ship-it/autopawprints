@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import {
   buildTitleLayout,
+  calculatePortraitVisualCenterOffset,
   cleanPortraitOuterContour,
   getPosterLayoutConfig
 } from "../lib/render";
@@ -28,6 +29,36 @@ describe("render layout", () => {
       layout.finalHeight
     );
     expect(layout.portraitBottomBleed).toBeGreaterThan(0);
+  });
+
+  it("calculates a bounded visual center correction for off-balance portrait mass", async () => {
+    const width = 120;
+    const height = 160;
+    const channels = 4;
+    const data = Buffer.alloc(width * height * channels);
+
+    for (let y = 20; y < 120; y += 1) {
+      for (let x = 55; x < 105; x += 1) {
+        const index = (y * width + x) * channels;
+
+        data[index] = 180;
+        data[index + 1] = 140;
+        data[index + 2] = 90;
+        data[index + 3] = 255;
+      }
+    }
+
+    const source = await sharp(data, {
+      raw: {
+        width,
+        height,
+        channels
+      }
+    })
+      .png()
+      .toBuffer();
+
+    expect(await calculatePortraitVisualCenterOffset(source)).toBeGreaterThan(0);
   });
 });
 

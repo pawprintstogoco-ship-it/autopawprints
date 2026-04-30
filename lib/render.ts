@@ -43,6 +43,9 @@ const MIN_BOTTOM_TAIL_ROWS = 28;
 const OUTER_CONTOUR_ALPHA_THRESHOLD = 28;
 const OUTER_CONTOUR_DARKNESS_THRESHOLD = 72;
 const OUTER_CONTOUR_NEUTRAL_THRESHOLD = 48;
+const PORTRAIT_VISUAL_CENTER_ALPHA_THRESHOLD = 32;
+const PORTRAIT_VISUAL_CENTER_REGION_RATIO = 0.72;
+const MAX_PORTRAIT_VISUAL_CENTER_SHIFT = 64;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -153,7 +156,9 @@ async function buildPosterPng(
   const portraitMetadata = await sharp(cleanedPortrait).metadata();
   const portraitWidth = portraitMetadata.width ?? artWidth;
   const portraitHeight = portraitMetadata.height ?? artHeight;
-  const portraitLeft = artLeft + Math.round((artWidth - portraitWidth) / 2);
+  const portraitVisualCenterOffset = await calculatePortraitVisualCenterOffset(cleanedPortrait);
+  const portraitLeft =
+    artLeft + Math.round((artWidth - portraitWidth) / 2) - portraitVisualCenterOffset;
   const portraitTop = Math.max(artTop, FINAL_HEIGHT - portraitHeight + PORTRAIT_BOTTOM_BLEED);
 
   const posterBackground = Buffer.from(`
@@ -538,6 +543,61 @@ export function getPosterLayoutConfig() {
     portraitAreaHeight: PORTRAIT_AREA_HEIGHT,
     portraitBottomBleed: PORTRAIT_BOTTOM_BLEED
   };
+}
+
+export async function calculatePortraitVisualCenterOffset(source: Buffer) {
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const channels = info.channels;
+  let minY = info.height;
+  let maxY = -1;
+
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const alpha = data[(y * info.width + x) * channels + 3] ?? 0;
+
+      if (alpha > PORTRAIT_VISUAL_CENTER_ALPHA_THRESHOLD) {
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (maxY < minY) {
+    return 0;
+  }
+
+  const measurementBottom = Math.round(
+    minY + (maxY - minY) * PORTRAIT_VISUAL_CENTER_REGION_RATIO
+  );
+  let weightedXTotal = 0;
+  let alphaTotal = 0;
+
+  for (let y = minY; y <= measurementBottom; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const alpha = data[(y * info.width + x) * channels + 3] ?? 0;
+
+      if (alpha > PORTRAIT_VISUAL_CENTER_ALPHA_THRESHOLD) {
+        weightedXTotal += x * alpha;
+        alphaTotal += alpha;
+      }
+    }
+  }
+
+  if (!alphaTotal) {
+    return 0;
+  }
+
+  const visualCenterX = weightedXTotal / alphaTotal;
+  const boxCenterX = info.width / 2;
+  const offset = Math.round(visualCenterX - boxCenterX);
+
+  return Math.max(
+    -MAX_PORTRAIT_VISUAL_CENTER_SHIFT,
+    Math.min(MAX_PORTRAIT_VISUAL_CENTER_SHIFT, offset)
+  );
 }
 
 export function buildTitleLayout(name: string, fontStyle: PosterFontStyle) {
