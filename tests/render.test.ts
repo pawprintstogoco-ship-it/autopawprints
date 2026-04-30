@@ -1,8 +1,10 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import {
+  analyzePosterComposition,
   buildTitleLayout,
   calculatePortraitVisualCenterOffset,
+  calculatePosterCompositionCorrections,
   cleanPortraitOuterContour,
   getPosterLayoutConfig
 } from "../lib/render";
@@ -59,6 +61,31 @@ describe("render layout", () => {
       .toBuffer();
 
     expect(await calculatePortraitVisualCenterOffset(source)).toBeGreaterThan(0);
+  });
+
+  it("reports composition QA and recommends a bounded pet centering correction", async () => {
+    const background = "#fbf6f1";
+    const poster = await sharp(
+      Buffer.from(`
+        <svg width="1800" height="2400" xmlns="http://www.w3.org/2000/svg">
+          <rect width="1800" height="2400" fill="${background}"/>
+          <rect x="760" y="220" width="280" height="100" fill="#4c382b"/>
+          <rect x="760" y="660" width="780" height="1740" fill="#c9964d"/>
+          <rect x="1000" y="1200" width="300" height="260" fill="#3d2f27"/>
+        </svg>
+      `)
+    )
+      .png()
+      .toBuffer();
+
+    const report = await analyzePosterComposition(poster, background);
+    const corrections = calculatePosterCompositionCorrections(report);
+
+    expect(Math.abs(report.titleCenterDeltaPx ?? 0)).toBeLessThan(1);
+    expect(report.petVisualCenterDeltaPx ?? 0).toBeGreaterThan(18);
+    expect(report.bottomContact).toBe(true);
+    expect(report.warnings).toContain("pet_visual_center_off");
+    expect(corrections.portraitOffsetX).toBeLessThan(0);
   });
 });
 
