@@ -83,6 +83,7 @@ npm run seed:demo
 - Etsy OAuth uses the documented PKCE flow and stores the seller token pair in the database. Reconnect Etsy after deploying the `transactions_w` scope.
 - Set `ETSY_WEBHOOK_SIGNING_SECRET` to the full `whsec_...` value from Etsy's webhook portal.
 - The webhook route expects Etsy's `order.paid` event plus `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers, verifies the raw body signature, then fetches the receipt resource from Etsy before creating the order.
+- For eligible pilot orders, the webhook can hand off the initial Etsy upload-message send to OpenClaw by posting an authenticated agent job to `OPENCLAW_HOOK_URL`. Configure `OPENCLAW_HOOK_TOKEN` and `OPENCLAW_CALLBACK_SECRET` only when a trusted OpenClaw hook endpoint is reachable from the deployed app.
 - The pilot is intentionally limited to `ETSY_PILOT_LISTING_ID`; non-pilot receipts are captured and flagged for manual handling.
 - Queue-backed render and delivery jobs are the recommended long-term production path, but only after a worker is running against the same Redis and database. Without that worker, hosted uploads must keep inline processing enabled.
 - Hosted Vercel builds intentionally do not run `prisma db push`. Production schema changes should be applied through the `Prisma Migrate` GitHub Actions workflow, which runs `prisma migrate deploy` against the configured `DATABASE_URL` secret.
