@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import { Resend, type Attachment } from "resend";
 import { requireEnv } from "@/lib/env";
 
 type ResendEmailReceivedEvent = {
@@ -56,11 +56,50 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing email id" }, { status: 400 });
   }
 
-  const { data, error } = await resend.emails.receiving.forward({
-    emailId,
-    from: EMAIL_FROM,
+  const { data: inbound, error: inboundError } =
+    await resend.emails.receiving.get(emailId);
+
+  if (inboundError) {
+    return NextResponse.json(
+      { error: inboundError.message },
+      { status: 502 }
+    );
+  }
+
+  if (!inbound) {
+    return NextResponse.json({ error: "Inbound email not found" }, { status: 404 });
+  }
+
+  const originalFrom = inbound.from || event.data?.from || "Unknown sender";
+  const originalTo = inbound.to?.length ? inbound.to.join(", ") : "hello@pawprints.ca";
+  const subject = inbound.subject || event.data?.subject || "(no subject)";
+  const senderName = getSenderDisplayName(originalFrom);
+  const senderAddress = extractEmailAddress(EMAIL_FROM);
+  const replyTo = inbound.reply_to?.length ? inbound.reply_to : originalFrom;
+  const attachments = await loadInboundAttachments(resend, emailId, inbound.attachments);
+
+  const { data, error } = await resend.emails.send({
+    from: `${quoteDisplayName(`${senderName} via PawPrints`)} <${senderAddress}>`,
     to: EMAIL_FORWARD_TO,
-    passthrough: true
+    replyTo,
+    subject,
+    html: wrapHtml({
+      from: originalFrom,
+      to: originalTo,
+      subject,
+      body: inbound.html ?? textToHtml(inbound.text ?? "")
+    }),
+    text: wrapText({
+      from: originalFrom,
+      to: originalTo,
+      subject,
+      body: inbound.text ?? stripHtml(inbound.html ?? "")
+    }),
+    attachments,
+    headers: {
+      "X-Autopawprints-Forwarded-From": originalFrom,
+      "X-Autopawprints-Inbound-Email-Id": emailId
+    }
   });
 
   if (error) {
@@ -84,4 +123,128 @@ function requireHeader(request: Request, name: string) {
   }
 
   return value;
+}
+
+function extractEmailAddress(value: string) {
+  return value.match(/<([^>]+)>/)?.[1]?.trim() || value.trim();
+}
+
+function getSenderDisplayName(from: string) {
+  const displayName = from.match(/^"?([^"<]+?)"?\s*</)?.[1]?.trim();
+  const emailAddress = from.match(/<([^>]+)>/)?.[1]?.trim() || from.trim();
+
+  return displayName || emailAddress;
+}
+
+function quoteDisplayName(value: string) {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`;
+}
+
+function wrapHtml({
+  from,
+  to,
+  subject,
+  body
+}: {
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+}) {
+  return `
+    <div style="font-family:Arial,sans-serif;color:#2f1f19;line-height:1.5">
+      <div style="border:1px solid #eadfce;border-radius:8px;padding:16px;margin-bottom:20px;background:#fffaf2">
+        <p style="margin:0 0 10px;font-weight:700">Forwarded inbound email to PawPrints</p>
+        <p style="margin:0"><strong>From:</strong> ${escapeHtml(from)}</p>
+        <p style="margin:0"><strong>To:</strong> ${escapeHtml(to)}</p>
+        <p style="margin:0"><strong>Subject:</strong> ${escapeHtml(subject)}</p>
+      </div>
+      ${body}
+    </div>
+  `;
+}
+
+function wrapText({
+  from,
+  to,
+  subject,
+  body
+}: {
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+}) {
+  return [
+    "Forwarded inbound email to PawPrints",
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    "",
+    body
+  ].join("\n");
+}
+
+function textToHtml(value: string) {
+  return `<pre style="white-space:pre-wrap;font-family:Arial,sans-serif">${escapeHtml(value)}</pre>`;
+}
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
+}
+
+async function loadInboundAttachments(
+  resend: Resend,
+  emailId: string,
+  inboundAttachments: { id: string; filename: string | null; size: number; content_type: string | null }[]
+) {
+  const maxBytes = 15 * 1024 * 1024;
+  let totalBytes = 0;
+  const attachments: Attachment[] = [];
+
+  for (const inboundAttachment of inboundAttachments) {
+    totalBytes += inboundAttachment.size;
+
+    if (totalBytes > maxBytes) {
+      break;
+    }
+
+    const { data, error } = await resend.emails.receiving.attachments.get({
+      emailId,
+      id: inboundAttachment.id
+    });
+
+    if (error || !data?.download_url) {
+      continue;
+    }
+
+    const response = await fetch(data.download_url);
+
+    if (!response.ok) {
+      continue;
+    }
+
+    const content = Buffer.from(await response.arrayBuffer());
+
+    attachments.push({
+      content,
+      filename: inboundAttachment.filename ?? data.filename ?? "attachment",
+      contentType: inboundAttachment.content_type ?? data.content_type
+    });
+  }
+
+  return attachments;
 }
