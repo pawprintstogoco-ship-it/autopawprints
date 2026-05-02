@@ -14,6 +14,7 @@ const envSchema = z.object({
   OPENAI_IMAGE_MODEL: z.string().min(1).default("gpt-image-1"),
   RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(1).default("PawPrints <onboarding@resend.dev>"),
+  EMAIL_REPLY_TO: z.string().email().optional(),
   OPS_EMAIL: z.string().email().default("pawprintstogoco@gmail.com"),
   ETSY_CLIENT_ID: z.string().min(1),
   ETSY_CLIENT_SECRET: z.string().default(""),

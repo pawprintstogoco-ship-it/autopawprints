@@ -176,7 +176,7 @@ export async function sendEmail({
   idempotencyKey,
   attachments
 }: SendEmailInput): Promise<SendEmailResult> {
-  const { EMAIL_FROM, RESEND_API_KEY } = requireEnv();
+  const { EMAIL_FROM, EMAIL_REPLY_TO, RESEND_API_KEY } = requireEnv();
   const recipients = Array.isArray(to) ? to : [to];
   const normalizedRecipients = getCustomerEmailRecipients(...recipients);
 
@@ -199,6 +199,7 @@ export async function sendEmail({
       subject,
       html,
       text,
+      replyTo: EMAIL_REPLY_TO,
       attachments: attachments?.map((attachment) => ({
         filename: attachment.filename,
         content: attachment.content,
