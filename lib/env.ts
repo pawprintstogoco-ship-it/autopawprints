@@ -30,7 +30,12 @@ const envSchema = z.object({
   ETSY_DELIVERY_MESSAGE_TEMPLATE: z
     .string()
     .min(1)
-    .default("Your portrait is ready. Open it here: {{DELIVERY_URL}}")
+    .default("Your portrait is ready. Open it here: {{DELIVERY_URL}}"),
+  OPENCLAW_HOOK_URL: z.string().url().optional(),
+  OPENCLAW_HOOK_TOKEN: z.string().min(1).optional(),
+  OPENCLAW_CALLBACK_SECRET: z.string().min(1).optional(),
+  OPENCLAW_AGENT_ID: z.string().min(1).optional(),
+  OPENCLAW_JOB_TIMEOUT_SECONDS: z.coerce.number().int().positive().optional()
 });
 
 export const env = envSchema.safeParse(process.env);
