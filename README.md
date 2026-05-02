@@ -5,7 +5,7 @@ PawPrints Automation is a Next.js app for running custom Etsy portrait orders th
 ## What is implemented
 
 - Etsy PKCE OAuth setup flow at `/etsy` and `/api/etsy/oauth/*`
-- Etsy `ORDER_PAID` webhook endpoint at `/api/etsy/webhooks/order-paid`
+- Etsy `order.paid` webhook endpoint at `/api/etsy/webhooks/order-paid`
 - Admin login and protected order dashboard
 - Google OAuth admin login with exact-email allowlisting
 - Tokenized customer upload flow at `/upload/[token]`
@@ -37,7 +37,7 @@ EMAIL_FROM="PawPrints <hello@yourdomain.com>"
 OPS_EMAIL=pawprintstogoco@gmail.com
 INLINE_RENDER_JOBS=
 ETSY_CLIENT_ID=...
-ETSY_CLIENT_SECRET=
+ETSY_CLIENT_SECRET=...
 ETSY_REDIRECT_URI=https://your-domain.com/api/etsy/oauth/callback
 ETSY_SHOP_ID=12345678
 ETSY_PILOT_LISTING_ID=1234567890
@@ -79,8 +79,10 @@ npm run seed:demo
 - Leave `INLINE_RENDER_JOBS` unset for the hosted demo flow so Vercel can process render jobs inline. Set `INLINE_RENDER_JOBS=false` only when a dedicated worker is running and you explicitly want uploads to queue render work instead.
 - Approval marks the order delivered and logs a manual Etsy messaging reminder with a prebuilt delivery message.
 - Approval sends the buyer a time-bound download link, emails ops for review, and marks the Etsy receipt shipped/paid.
+- `ETSY_CLIENT_ID` is the Etsy App API Key keystring. `ETSY_CLIENT_SECRET` is the matching shared secret; Etsy v3 API calls send them as `x-api-key: keystring:shared-secret`.
 - Etsy OAuth uses the documented PKCE flow and stores the seller token pair in the database. Reconnect Etsy after deploying the `transactions_w` scope.
-- The webhook route expects Etsy-style `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers and fetches the receipt resource from Etsy before creating the order.
+- Set `ETSY_WEBHOOK_SIGNING_SECRET` to the full `whsec_...` value from Etsy's webhook portal.
+- The webhook route expects Etsy's `order.paid` event plus `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers, verifies the raw body signature, then fetches the receipt resource from Etsy before creating the order.
 - The pilot is intentionally limited to `ETSY_PILOT_LISTING_ID`; non-pilot receipts are captured and flagged for manual handling.
 - Queue-backed render and delivery jobs are the recommended long-term production path, but only after a worker is running against the same Redis and database. Without that worker, hosted uploads must keep inline processing enabled.
 - Hosted Vercel builds intentionally do not run `prisma db push`. Production schema changes should be applied through the `Prisma Migrate` GitHub Actions workflow, which runs `prisma migrate deploy` against the configured `DATABASE_URL` secret.

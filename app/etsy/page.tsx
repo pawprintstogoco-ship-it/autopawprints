@@ -73,14 +73,16 @@ export default async function EtsySetupPage() {
           <div className="card stack">
             <strong>2. Connect OAuth</strong>
             <span className="muted">
-              Approve `shops_r`, `shops_w`, and `transactions_r` so the app can
-              read receipts and update the digital sale message.
+              Approve `shops_r`, `shops_w`, `transactions_r`, and `transactions_w`
+              so the app can read receipts, update the digital sale message, and
+              mark completed receipts.
             </span>
           </div>
           <div className="card stack">
             <strong>3. Register the paid-order webhook</strong>
             <span className="muted">
-              Point Etsy to the callback URL shown here for the pilot shop.
+              Point Etsy's `order.paid` event to the callback URL shown here for
+              the pilot shop.
             </span>
           </div>
         </aside>

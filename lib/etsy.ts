@@ -10,12 +10,15 @@ import { prisma } from "@/lib/prisma";
 
 const OAUTH_STATE_COOKIE = "pawprints_etsy_state";
 const OAUTH_VERIFIER_COOKIE = "pawprints_etsy_verifier";
+const WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 5 * 60;
 
 type EtsyWebhookEnvelope = {
   event_name?: string;
   event_type?: string;
   resource?: string;
   resource_url?: string;
+  shop_id?: number | string;
+  receipt_id?: number | string;
   data?: {
     shop_id?: number | string;
     receipt_id?: number | string;
@@ -57,13 +60,35 @@ export function verifyEtsyWebhookSignature({
     return false;
   }
 
+  const timestampSeconds = Number(webhookTimestamp);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  if (
+    !Number.isFinite(timestampSeconds) ||
+    Math.abs(nowSeconds - timestampSeconds) > WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS
+  ) {
+    return false;
+  }
+
   const { ETSY_WEBHOOK_SIGNING_SECRET } = requireEnv();
   const signedPayload = `${webhookId}.${webhookTimestamp}.${body}`;
-  const digest = createHmac("sha256", ETSY_WEBHOOK_SIGNING_SECRET)
+
+  let secretBytes: Buffer;
+
+  try {
+    secretBytes = decodeEtsyWebhookSigningSecret(ETSY_WEBHOOK_SIGNING_SECRET);
+  } catch {
+    return false;
+  }
+
+  const digest = createHmac("sha256", secretBytes)
     .update(signedPayload)
     .digest("base64");
 
-  return safeCompare(digest, signatureHeader);
+  return signatureHeader
+    .split(",")
+    .map((signature) => signature.trim())
+    .some((signature) => safeCompare(digest, signature));
 }
 
 export function buildDigitalSaleMessage(uploadUrl: string) {
@@ -78,6 +103,16 @@ export function buildDeliveryMessage(deliveryUrl: string) {
 
 export function getEtsyScopes() {
   return ["shops_r", "shops_w", "transactions_r", "transactions_w"];
+}
+
+export function getEtsyApiKeyHeader() {
+  const { ETSY_CLIENT_ID, ETSY_CLIENT_SECRET } = requireEnv();
+
+  if (!ETSY_CLIENT_ID || !ETSY_CLIENT_SECRET) {
+    throw new Error("ETSY_CLIENT_ID and ETSY_CLIENT_SECRET are required for Etsy API requests");
+  }
+
+  return `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`;
 }
 
 export async function createEtsyAuthorizeUrl() {
@@ -118,8 +153,7 @@ export async function exchangeEtsyAuthorizationCode({
   code: string;
   state: string;
 }) {
-  const { ETSY_CLIENT_ID, ETSY_CLIENT_SECRET, ETSY_REDIRECT_URI, ETSY_SHOP_ID, ETSY_API_BASE_URL } =
-    requireEnv();
+  const { ETSY_CLIENT_ID, ETSY_REDIRECT_URI, ETSY_SHOP_ID, ETSY_API_BASE_URL } = requireEnv();
   const cookieStore = await cookies();
   const storedState = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
   const verifier = cookieStore.get(OAUTH_VERIFIER_COOKIE)?.value;
@@ -135,10 +169,6 @@ export async function exchangeEtsyAuthorizationCode({
     code,
     code_verifier: verifier
   });
-
-  if (ETSY_CLIENT_SECRET) {
-    body.set("client_secret", ETSY_CLIENT_SECRET);
-  }
 
   const response = await fetch(`${ETSY_API_BASE_URL}/public/oauth/token`, {
     method: "POST",
@@ -186,7 +216,7 @@ export async function exchangeEtsyAuthorizationCode({
 }
 
 export async function refreshEtsyAccessTokenIfNeeded() {
-  const { ETSY_API_BASE_URL, ETSY_CLIENT_ID, ETSY_CLIENT_SECRET, ETSY_SHOP_ID } = requireEnv();
+  const { ETSY_API_BASE_URL, ETSY_CLIENT_ID, ETSY_SHOP_ID } = requireEnv();
   const connection = await prisma.etsyConnection.findUnique({
     where: {
       shopId: ETSY_SHOP_ID
@@ -206,10 +236,6 @@ export async function refreshEtsyAccessTokenIfNeeded() {
     client_id: ETSY_CLIENT_ID,
     refresh_token: connection.refreshToken
   });
-
-  if (ETSY_CLIENT_SECRET) {
-    body.set("client_secret", ETSY_CLIENT_SECRET);
-  }
 
   const response = await fetch(`${ETSY_API_BASE_URL}/public/oauth/token`, {
     method: "POST",
@@ -248,7 +274,7 @@ export async function refreshEtsyAccessTokenIfNeeded() {
 }
 
 export async function fetchEtsyReceiptByResourceUrl(resourceUrl: string) {
-  const { ETSY_API_BASE_URL, ETSY_CLIENT_ID } = requireEnv();
+  const { ETSY_API_BASE_URL } = requireEnv();
   const accessToken = await refreshEtsyAccessTokenIfNeeded();
   const apiBaseUrl = new URL(ETSY_API_BASE_URL);
   const requestUrl = new URL(resourceUrl, apiBaseUrl);
@@ -264,7 +290,7 @@ export async function fetchEtsyReceiptByResourceUrl(resourceUrl: string) {
   const response = await fetch(requestUrl.toString(), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "x-api-key": ETSY_CLIENT_ID
+      "x-api-key": getEtsyApiKeyHeader()
     },
     cache: "no-store"
   });
@@ -279,7 +305,6 @@ export async function fetchEtsyReceiptByResourceUrl(resourceUrl: string) {
 export async function syncPilotDigitalSaleMessage(uploadUrlExample: string) {
   const {
     ETSY_API_BASE_URL,
-    ETSY_CLIENT_ID,
     ETSY_SHOP_ID
   } = requireEnv();
   const accessToken = await refreshEtsyAccessTokenIfNeeded();
@@ -291,7 +316,7 @@ export async function syncPilotDigitalSaleMessage(uploadUrlExample: string) {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "x-api-key": ETSY_CLIENT_ID,
+      "x-api-key": getEtsyApiKeyHeader(),
       "content-type": "application/x-www-form-urlencoded"
     },
     body
@@ -305,7 +330,6 @@ export async function syncPilotDigitalSaleMessage(uploadUrlExample: string) {
 export async function markEtsyReceiptComplete(receiptId: string) {
   const {
     ETSY_API_BASE_URL,
-    ETSY_CLIENT_ID,
     ETSY_SHOP_ID
   } = requireEnv();
   const accessToken = await refreshEtsyAccessTokenIfNeeded();
@@ -320,7 +344,7 @@ export async function markEtsyReceiptComplete(receiptId: string) {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        "x-api-key": ETSY_CLIENT_ID,
+        "x-api-key": getEtsyApiKeyHeader(),
         "content-type": "application/x-www-form-urlencoded"
       },
       body
@@ -337,10 +361,12 @@ export function normalizeWebhookEnvelope(
 ) {
   const eventType = payload.event_name ?? payload.event_type ?? "unknown";
   const resourceUrl = payload.resource_url ?? payload.resource ?? null;
+  const shopIdValue = payload.shop_id ?? payload.data?.shop_id;
+  const receiptIdValue = payload.receipt_id ?? payload.data?.receipt_id;
   const shopId =
-    payload.data?.shop_id !== undefined ? String(payload.data.shop_id) : null;
+    shopIdValue !== undefined ? String(shopIdValue) : null;
   const receiptId =
-    payload.data?.receipt_id !== undefined ? String(payload.data.receipt_id) : null;
+    receiptIdValue !== undefined ? String(receiptIdValue) : null;
 
   return {
     eventType,
@@ -348,6 +374,10 @@ export function normalizeWebhookEnvelope(
     shopId,
     receiptId
   };
+}
+
+export function isEtsyOrderPaidEvent(eventType: string) {
+  return eventType.toLowerCase().replace("_", ".") === "order.paid";
 }
 
 export function normalizeReceiptPayload(receipt: EtsyReceiptResponse) {
@@ -369,6 +399,16 @@ export function normalizeReceiptPayload(receipt: EtsyReceiptResponse) {
       currencyCode: transaction.price?.currency_code
     }))
   };
+}
+
+function decodeEtsyWebhookSigningSecret(secret: string) {
+  const encoded = secret.startsWith("whsec_") ? secret.slice("whsec_".length) : secret;
+
+  if (!encoded) {
+    throw new Error("Missing Etsy webhook signing secret");
+  }
+
+  return Buffer.from(encoded, "base64");
 }
 
 function safeCompare(left: string, right: string) {

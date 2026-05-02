@@ -21,13 +21,13 @@ beforeEach(() => {
   process.env.OPS_EMAIL = "pawprintstogoco@gmail.com";
   process.env.DELIVERY_LINK_TTL_HOURS = "168";
   process.env.ETSY_CLIENT_ID = "etsy-client";
-  process.env.ETSY_CLIENT_SECRET = "";
+  process.env.ETSY_CLIENT_SECRET = "etsy-secret";
   process.env.ETSY_REDIRECT_URI = "http://localhost:3010/api/etsy/oauth/callback";
   process.env.ETSY_SHOP_ID = "12345678";
   process.env.ETSY_PILOT_LISTING_ID = "987654321";
   process.env.ETSY_WEBHOOK_CALLBACK_URL =
     "http://localhost:3010/api/etsy/webhooks/order-paid";
-  process.env.ETSY_WEBHOOK_SIGNING_SECRET = "whsec_secret";
+  process.env.ETSY_WEBHOOK_SIGNING_SECRET = `whsec_${Buffer.from("webhook_secret").toString("base64")}`;
   process.env.ETSY_API_BASE_URL = "https://api.etsy.com/v3";
 });
 
@@ -44,14 +44,19 @@ describe("etsy helpers", () => {
     expect(getEtsyScopes()).toContain("transactions_w");
   });
 
+  it("builds Etsy x-api-key from the keystring and shared secret", async () => {
+    const { getEtsyApiKeyHeader } = await import("../lib/etsy");
+    expect(getEtsyApiKeyHeader()).toBe("etsy-client:etsy-secret");
+  });
+
   it("verifies Etsy webhook signature", async () => {
     const { createHmac } = await import("node:crypto");
     const { verifyEtsyWebhookSignature } = await import("../lib/etsy");
     const payload = JSON.stringify({ ok: true });
     const webhookId = "evt_123";
-    const webhookTimestamp = "1712000000";
+    const webhookTimestamp = String(Math.floor(Date.now() / 1000));
     const signedPayload = `${webhookId}.${webhookTimestamp}.${payload}`;
-    const signature = createHmac("sha256", "whsec_secret")
+    const signature = createHmac("sha256", Buffer.from("webhook_secret"))
       .update(signedPayload)
       .digest("base64");
     expect(
@@ -70,6 +75,14 @@ describe("etsy helpers", () => {
         webhookTimestamp
       })
     ).toBe(false);
+    expect(
+      verifyEtsyWebhookSignature({
+        body: payload,
+        signatureHeader: signature,
+        webhookId,
+        webhookTimestamp: String(Math.floor(Date.now() / 1000) - 301)
+      })
+    ).toBe(false);
   });
 
   it("normalizes webhook envelopes and receipt payloads", async () => {
@@ -78,7 +91,8 @@ describe("etsy helpers", () => {
       normalizeWebhookEnvelope({
         event_name: "ORDER_PAID",
         resource_url: "/application/shops/123/receipts/456",
-        data: { shop_id: 123, receipt_id: 456 }
+        shop_id: 123,
+        receipt_id: 456
       })
     ).toEqual({
       eventType: "ORDER_PAID",
@@ -86,6 +100,10 @@ describe("etsy helpers", () => {
       shopId: "123",
       receiptId: "456"
     });
+
+    const { isEtsyOrderPaidEvent } = await import("../lib/etsy");
+    expect(isEtsyOrderPaidEvent("order.paid")).toBe(true);
+    expect(isEtsyOrderPaidEvent("ORDER_PAID")).toBe(true);
 
     expect(
       normalizeReceiptPayload({

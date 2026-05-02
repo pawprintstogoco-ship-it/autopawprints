@@ -38,13 +38,13 @@ beforeEach(() => {
   process.env.OPS_EMAIL = "pawprintstogoco@gmail.com";
   process.env.DELIVERY_LINK_TTL_HOURS = "168";
   process.env.ETSY_CLIENT_ID = "etsy-client";
-  process.env.ETSY_CLIENT_SECRET = "";
+  process.env.ETSY_CLIENT_SECRET = "etsy-secret";
   process.env.ETSY_REDIRECT_URI = "http://localhost:3010/api/etsy/oauth/callback";
   process.env.ETSY_SHOP_ID = "12345678";
   process.env.ETSY_PILOT_LISTING_ID = "987654321";
   process.env.ETSY_WEBHOOK_CALLBACK_URL =
     "http://localhost:3010/api/etsy/webhooks/order-paid";
-  process.env.ETSY_WEBHOOK_SIGNING_SECRET = "whsec_secret";
+  process.env.ETSY_WEBHOOK_SIGNING_SECRET = `whsec_${Buffer.from("webhook_secret").toString("base64")}`;
   process.env.ETSY_API_BASE_URL = "https://api.etsy.com/v3";
 });
 

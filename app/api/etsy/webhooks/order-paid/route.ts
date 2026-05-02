@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   fetchEtsyReceiptByResourceUrl,
+  isEtsyOrderPaidEvent,
   normalizeReceiptPayload,
   normalizeWebhookEnvelope,
   verifyEtsyWebhookSignature
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     const envelope = normalizeWebhookEnvelope(payload as never);
     const env = requireEnv();
 
-    if (envelope.eventType !== "ORDER_PAID") {
+    if (!isEtsyOrderPaidEvent(envelope.eventType)) {
       if (webhookId) {
         await registerWebhookDelivery({
           externalWebhookId: webhookId,
