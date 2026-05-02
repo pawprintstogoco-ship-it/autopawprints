@@ -6,6 +6,7 @@ import {
   normalizeWebhookEnvelope,
   verifyEtsyWebhookSignature
 } from "@/lib/etsy";
+import { enqueueInitialEtsyUploadMessageJob } from "@/lib/openclaw";
 import {
   hasWebhookDelivery,
   ingestOrderPaidWebhook,
@@ -93,6 +94,15 @@ export async function POST(request: Request) {
         orderId: order.id
       });
     }
+
+    await enqueueInitialEtsyUploadMessageJob({
+      id: order.id,
+      receiptId: order.receiptId,
+      buyerName: order.buyerName,
+      pilotListingEligible:
+        normalized.listingId === env.ETSY_PILOT_LISTING_ID &&
+        (envelope.shopId ?? env.ETSY_SHOP_ID) === env.ETSY_SHOP_ID
+    });
 
     return NextResponse.json({ ok: true, orderId: order.id });
   } catch (error) {
