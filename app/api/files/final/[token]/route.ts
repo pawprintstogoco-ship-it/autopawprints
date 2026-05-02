@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrderByUploadToken } from "@/lib/orders";
+import { getOrderByDownloadToken, getOrderByUploadToken } from "@/lib/orders";
 import { getBuffer } from "@/lib/storage";
 
 export async function GET(
@@ -7,7 +7,9 @@ export async function GET(
   context: { params: Promise<{ token: string }> }
 ) {
   const { token } = await context.params;
-  const order = await getOrderByUploadToken(token);
+  const uploadOrder = await getOrderByUploadToken(token);
+  const downloadOrder = uploadOrder ? null : await getOrderByDownloadToken(token);
+  const order = uploadOrder ?? downloadOrder;
 
   if (!order) {
     return new NextResponse("File not found", {
@@ -19,7 +21,12 @@ export async function GET(
     });
   }
 
-  const finalArtifact = order.finalArtifacts[0];
+  const finalArtifact =
+    "finalArtifacts" in order
+      ? order.finalArtifacts[0]
+      : order.artifacts
+          .filter((artifact) => artifact.kind === "FINAL_PNG")
+          .sort((a, b) => b.version - a.version || b.createdAt.getTime() - a.createdAt.getTime())[0];
 
   if (!finalArtifact) {
     return new NextResponse("Final portrait not ready", {

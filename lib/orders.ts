@@ -7,6 +7,14 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  buildOpsApprovalEmail,
+  buildPortraitReadyEmail,
+  buildUploadRequestEmail,
+  getCustomerEmailRecipients,
+  normalizeEmailAddress,
+  sendEmail
+} from "@/lib/email";
+import {
   posterBackgroundStyleFromDb,
   posterBackgroundStyleToDb,
   posterFontStyleFromDb,
@@ -15,7 +23,7 @@ import {
   type PosterFontStyle
 } from "@/lib/poster-styles";
 import { enqueueRenderJob } from "@/lib/queue";
-import { buildDigitalSaleMessage } from "@/lib/etsy";
+import { buildDigitalSaleMessage, markEtsyReceiptComplete } from "@/lib/etsy";
 import { analyzeImage, renderPortrait } from "@/lib/render";
 import { scheduleMissingPhotoReminders } from "@/lib/reminders";
 import { deleteObject, getBuffer, putBuffer } from "@/lib/storage";
@@ -85,6 +93,9 @@ export async function ingestOrderPaidWebhook(payload: EtsyWebhookPayload) {
     select: {
       id: true,
       receiptId: true,
+      buyerName: true,
+      buyerEmail: true,
+      uploadToken: true,
       createdAt: true
     }
   });
@@ -126,6 +137,13 @@ export async function ingestOrderPaidWebhook(payload: EtsyWebhookPayload) {
 
   if (pilotListingEligible) {
     await scheduleMissingPhotoReminders(order.id, order.createdAt);
+    await sendUploadRequestEmailIfNeeded({
+      orderId: order.id,
+      receiptId: order.receiptId,
+      buyerName: order.buyerName,
+      buyerEmail: order.buyerEmail,
+      uploadToken: order.uploadToken
+    });
   } else {
     await withQueryFallback(
       "ingestOrderPaidWebhook pilot listing mismatch event",
@@ -542,6 +560,7 @@ export async function getOrderById(orderId: string) {
     receiptId: String(rawOrder.receiptId ?? ""),
     buyerName: String(rawOrder.buyerName ?? ""),
     buyerEmail: rawOrder.buyerEmail ? String(rawOrder.buyerEmail) : null,
+    deliveryEmail: nullableString(rawOrder.deliveryEmail),
     status: String(rawOrder.status ?? OrderStatus.PAID) as OrderStatus,
     uploadToken: String(rawOrder.uploadToken ?? ""),
     uploads: uploads.map(({ upload }) => ({
@@ -568,6 +587,7 @@ export async function getOrderById(orderId: string) {
       id: String(event.id),
       eventType: String(event.eventType ?? ""),
       channel: String(event.channel ?? MessageChannel.INTERNAL) as MessageChannel,
+      subject: nullableString(event.subject),
       body: String(event.body ?? ""),
       createdAt: toDate(event.createdAt) ?? new Date(0)
     })),
@@ -628,6 +648,8 @@ export async function getOrderByUploadToken(token: string) {
   return {
     id: orderId,
     buyerName: String(rawOrder.buyerName ?? ""),
+    buyerEmail: nullableString(rawOrder.buyerEmail),
+    deliveryEmail: nullableString(rawOrder.deliveryEmail),
     receiptId: String(rawOrder.receiptId ?? ""),
     status: String(rawOrder.status ?? OrderStatus.PAID) as OrderStatus,
     uploads: uploads.map(({ upload }) => ({
@@ -676,6 +698,7 @@ export async function getOrderByDownloadToken(token: string) {
 
 export async function storeCustomerUpload({
   orderId,
+  customerEmail,
   petName,
   notes,
   fontStyle,
@@ -686,6 +709,7 @@ export async function storeCustomerUpload({
   deferInlineProcessing = false
 }: {
   orderId: string;
+  customerEmail: string;
   petName: string;
   notes?: string;
   fontStyle: PosterFontStyle;
@@ -709,6 +733,12 @@ export async function storeCustomerUpload({
 
   if (!petName.trim()) {
     throw new Error("Pet name is required");
+  }
+
+  const deliveryEmail = normalizeEmailAddress(customerEmail);
+
+  if (!deliveryEmail) {
+    throw new Error("A valid delivery email is required");
   }
 
   if (!isAllowedUploadMimeType(mimeType)) {
@@ -753,6 +783,7 @@ export async function storeCustomerUpload({
       },
       data: {
         status: orderStatus,
+        deliveryEmail,
         photoReceivedAt: uploadReceivedAt,
         auditLog: {
           create: {
@@ -934,6 +965,15 @@ export async function processRenderJob(renderJobId: string) {
         }
       })
     ]);
+
+    await sendOpsApprovalEmailIfNeeded({
+      orderId: order.id,
+      receiptId: order.receiptId,
+      buyerName: order.buyerName,
+      buyerEmail: order.buyerEmail,
+      deliveryEmail: order.deliveryEmail,
+      finalPngKey: output.finalPngKey
+    });
   } catch (error) {
     const failureReason = formatJobFailureReason(error);
     console.error(`[render] job ${renderJob.id} failed`, error);
@@ -973,8 +1013,8 @@ export async function processRenderJob(renderJobId: string) {
 }
 
 export async function approveOrder(orderId: string) {
-  const { APP_URL } = requireEnv();
-  const deliveryTtlHours = 24 * 7;
+  const { APP_URL, DELIVERY_LINK_TTL_HOURS } = requireEnv();
+  const deliveryTtlHours = Number(DELIVERY_LINK_TTL_HOURS || 168);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + deliveryTtlHours * 60 * 60 * 1000);
   const order = await prisma.order.findUnique({
@@ -984,8 +1024,9 @@ export async function approveOrder(orderId: string) {
     select: {
       id: true,
       receiptId: true,
+      buyerName: true,
       buyerEmail: true,
-      uploadToken: true
+      deliveryEmail: true
     }
   });
 
@@ -1011,9 +1052,34 @@ export async function approveOrder(orderId: string) {
     throw new Error("Cannot approve before a final portrait is generated");
   }
 
-  const deliveryUrl = `${APP_URL}/api/files/final/${order.uploadToken}`;
+  const recipients = getCustomerEmailRecipients(order.buyerEmail, order.deliveryEmail);
 
-  return prisma.order.update({
+  if (recipients.length === 0) {
+    throw new Error("Cannot approve before a customer delivery email is captured");
+  }
+
+  const downloadToken = createToken();
+  const deliveryUrl = `${APP_URL}/download/${downloadToken}`;
+
+  const deliveryEmail = buildPortraitReadyEmail({
+    buyerName: order.buyerName,
+    receiptId: order.receiptId,
+    downloadUrl: deliveryUrl,
+    expiresAt
+  });
+
+  const customerEmailResult = await sendEmail({
+    to: recipients,
+    subject: deliveryEmail.subject,
+    html: deliveryEmail.html,
+    text: deliveryEmail.text,
+    idempotencyKey: `customer-delivery-${order.id}-${downloadToken}`
+  }).catch((error) => ({
+    status: "skipped" as const,
+    reason: formatJobFailureReason(error)
+  }));
+
+  const updated = await prisma.order.update({
     where: {
       id: order.id
     },
@@ -1021,9 +1087,8 @@ export async function approveOrder(orderId: string) {
       status: OrderStatus.DELIVERED,
       approvedAt: now,
       deliveredAt: now,
-      uploadTokenExpiresAt: expiresAt,
-      downloadToken: null,
-      downloadTokenExpiresAt: null,
+      downloadToken,
+      downloadTokenExpiresAt: expiresAt,
       deliveryEvents: {
         create: {
           status: DeliveryStatus.SENT,
@@ -1033,9 +1098,16 @@ export async function approveOrder(orderId: string) {
       },
       messageEvents: {
         create: {
-          channel: MessageChannel.INTERNAL,
-          eventType: "delivery.manual_message_required",
-          body: `Send Etsy message manually with this final PNG link: ${deliveryUrl}`
+          channel: MessageChannel.EMAIL,
+          eventType:
+            customerEmailResult.status === "sent"
+              ? "delivery.email_sent"
+              : "delivery.email_skipped",
+          subject: deliveryEmail.subject,
+          body:
+            customerEmailResult.status === "sent"
+              ? `Sent delivery link to ${recipients.join(", ")}. Resend id: ${customerEmailResult.id ?? "n/a"}`
+              : `Delivery email was not sent: ${customerEmailResult.reason}`
         }
       },
       auditLog: {
@@ -1046,13 +1118,62 @@ export async function approveOrder(orderId: string) {
           {
             action: "delivery.sent",
             metadata: {
-              deliveryUrl
+              deliveryUrl,
+              recipients,
+              emailStatus: customerEmailResult.status
             }
           }
         ]
       }
     }
   });
+
+  try {
+    await markEtsyReceiptComplete(order.receiptId);
+    await prisma.order.update({
+      where: {
+        id: order.id
+      },
+      data: {
+        auditLog: {
+          create: {
+            action: "etsy.receipt_completed",
+            metadata: {
+              receiptId: order.receiptId
+            }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    const failureReason = formatJobFailureReason(error);
+    await prisma.order.update({
+      where: {
+        id: order.id
+      },
+      data: {
+        status: OrderStatus.NEEDS_MANUAL_ATTENTION,
+        messageEvents: {
+          create: {
+            channel: MessageChannel.INTERNAL,
+            eventType: "etsy.receipt_completion_failed",
+            body: `Local delivery is complete, but Etsy receipt ${order.receiptId} needs manual completion: ${failureReason}`
+          }
+        },
+        auditLog: {
+          create: {
+            action: "etsy.receipt_completion_failed",
+            metadata: {
+              receiptId: order.receiptId,
+              failureReason
+            }
+          }
+        }
+      }
+    });
+  }
+
+  return updated;
 }
 
 export async function markNeedsManualAttention(orderId: string, reason: string) {
@@ -1228,6 +1349,192 @@ export async function recordDeliveryOpen(orderId: string) {
   });
 }
 
+async function sendUploadRequestEmailIfNeeded({
+  orderId,
+  receiptId,
+  buyerName,
+  buyerEmail,
+  uploadToken
+}: {
+  orderId: string;
+  receiptId: string;
+  buyerName: string;
+  buyerEmail: string | null;
+  uploadToken: string;
+}) {
+  const recipient = normalizeEmailAddress(buyerEmail);
+
+  if (!recipient) {
+    return;
+  }
+
+  const existing = await prisma.messageEvent.findFirst({
+    where: {
+      orderId,
+      eventType: "upload_request.email_sent"
+    }
+  });
+
+  if (existing) {
+    return;
+  }
+
+  const { APP_URL } = requireEnv();
+  const uploadUrl = `${APP_URL}/upload/${uploadToken}`;
+  const email = buildUploadRequestEmail({
+    buyerName,
+    receiptId,
+    uploadUrl
+  });
+
+  try {
+    const result = await sendEmail({
+      to: recipient,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      idempotencyKey: `upload-request-${orderId}`
+    });
+
+    await prisma.messageEvent.create({
+      data: {
+        orderId,
+        channel: MessageChannel.EMAIL,
+        eventType:
+          result.status === "sent" ? "upload_request.email_sent" : "upload_request.email_skipped",
+        subject: email.subject,
+        body:
+          result.status === "sent"
+            ? `Sent upload request to ${recipient}. Resend id: ${result.id ?? "n/a"}`
+            : `Upload request email was not sent: ${result.reason}`
+      }
+    });
+  } catch (error) {
+    await prisma.messageEvent.create({
+      data: {
+        orderId,
+        channel: MessageChannel.EMAIL,
+        eventType: "upload_request.email_failed",
+        subject: email.subject,
+        body: formatJobFailureReason(error)
+      }
+    });
+  }
+}
+
+async function sendOpsApprovalEmailIfNeeded({
+  orderId,
+  receiptId,
+  buyerName,
+  buyerEmail,
+  deliveryEmail,
+  finalPngKey
+}: {
+  orderId: string;
+  receiptId: string;
+  buyerName: string;
+  buyerEmail: string | null;
+  deliveryEmail: string | null;
+  finalPngKey: string;
+}) {
+  const existing = await prisma.messageEvent.findFirst({
+    where: {
+      orderId,
+      eventType: "approval.email_sent"
+    }
+  });
+
+  if (existing) {
+    return;
+  }
+
+  const { APP_URL, OPS_EMAIL } = requireEnv();
+  const adminUrl = `${APP_URL}/orders/${orderId}`;
+  const email = buildOpsApprovalEmail({
+    buyerName,
+    receiptId,
+    buyerEmail,
+    deliveryEmail,
+    adminUrl
+  });
+
+  try {
+    const portrait = await getBuffer(finalPngKey);
+    const result = await sendEmail({
+      to: OPS_EMAIL,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      idempotencyKey: `ops-approval-${orderId}`,
+      attachments: [
+        {
+          filename: `pawprints-${receiptId}.png`,
+          content: portrait,
+          contentType: "image/png"
+        }
+      ]
+    });
+
+    await prisma.order.update({
+      where: {
+        id: orderId
+      },
+      data: {
+        messageEvents: {
+          create: {
+            channel: MessageChannel.EMAIL,
+            eventType:
+              result.status === "sent" ? "approval.email_sent" : "approval.email_skipped",
+            subject: email.subject,
+            body:
+              result.status === "sent"
+                ? `Sent approval email to ${OPS_EMAIL}. Resend id: ${result.id ?? "n/a"}`
+                : `Approval email was not sent: ${result.reason}`
+          }
+        },
+        auditLog: {
+          create: {
+            action:
+              result.status === "sent" ? "approval.email_sent" : "approval.email_skipped",
+            metadata: {
+              opsEmail: OPS_EMAIL,
+              finalPngKey,
+              emailStatus: result.status
+            }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    const failureReason = formatJobFailureReason(error);
+    await prisma.order.update({
+      where: {
+        id: orderId
+      },
+      data: {
+        messageEvents: {
+          create: {
+            channel: MessageChannel.EMAIL,
+            eventType: "approval.email_failed",
+            subject: email.subject,
+            body: failureReason
+          }
+        },
+        auditLog: {
+          create: {
+            action: "approval.email_failed",
+            metadata: {
+              opsEmail: OPS_EMAIL,
+              finalPngKey,
+              failureReason
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
 function sanitizeFileName(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
 }
@@ -1243,6 +1550,15 @@ function toDate(value: unknown) {
 
   const parsed = new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function nullableString(value: unknown) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized || null;
 }
 
 async function withQueryFallback<T>(label: string, query: () => Promise<T>, fallback: T) {

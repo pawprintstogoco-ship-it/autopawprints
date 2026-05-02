@@ -16,6 +16,9 @@ beforeEach(() => {
   process.env.SMTP_USER = "example";
   process.env.SMTP_PASSWORD = "example";
   process.env.MAIL_FROM = "PawPrints <hello@pawprintsca.com>";
+  process.env.RESEND_API_KEY = "";
+  process.env.EMAIL_FROM = "PawPrints <hello@pawprintsca.com>";
+  process.env.OPS_EMAIL = "pawprintstogoco@gmail.com";
   process.env.DELIVERY_LINK_TTL_HOURS = "168";
   process.env.ETSY_CLIENT_ID = "etsy-client";
   process.env.ETSY_CLIENT_SECRET = "";
@@ -34,6 +37,11 @@ describe("etsy helpers", () => {
     expect(buildDigitalSaleMessage("http://localhost:3010/upload/token")).toContain(
       "http://localhost:3010/upload/token"
     );
+  });
+
+  it("requests Etsy write scope for receipt completion", async () => {
+    const { getEtsyScopes } = await import("../lib/etsy");
+    expect(getEtsyScopes()).toContain("transactions_w");
   });
 
   it("verifies Etsy webhook signature", async () => {
@@ -141,5 +149,37 @@ describe("storage helpers", () => {
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
     );
     expect(fallback.includes(Buffer.from("<script>"))).toBe(false);
+  });
+});
+
+describe("email helpers", () => {
+  it("normalizes and deduplicates customer recipients", async () => {
+    const { getCustomerEmailRecipients } = await import("../lib/email");
+
+    expect(
+      getCustomerEmailRecipients(
+        "Buyer@Example.com",
+        " buyer@example.com ",
+        "delivery@example.com",
+        "not-an-email"
+      )
+    ).toEqual(["buyer@example.com", "delivery@example.com"]);
+  });
+
+  it("builds approval email copy with order context", async () => {
+    const { buildOpsApprovalEmail } = await import("../lib/email");
+    const email = buildOpsApprovalEmail({
+      buyerName: "Maple Buyer",
+      receiptId: "12345",
+      buyerEmail: "etsy@example.com",
+      deliveryEmail: "delivery@example.com",
+      adminUrl: "http://localhost:3010/orders/order_123"
+    });
+
+    expect(email.subject).toContain("12345");
+    expect(email.text).toContain("Maple Buyer");
+    expect(email.text).toContain("etsy@example.com");
+    expect(email.text).toContain("delivery@example.com");
+    expect(email.text).toContain("http://localhost:3010/orders/order_123");
   });
 });

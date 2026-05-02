@@ -37,6 +37,7 @@ export async function POST(
   }
 
   const formData = await request.formData();
+  const customerEmail = String(formData.get("customerEmail") ?? "");
   const petName = String(formData.get("petName") ?? "");
   const notes = String(formData.get("notes") ?? "");
   const photo = formData.get("photo");
@@ -65,6 +66,7 @@ export async function POST(
 
     await storeCustomerUpload({
       orderId: order.id,
+      customerEmail,
       petName,
       notes,
       fontStyle,

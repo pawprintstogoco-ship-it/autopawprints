@@ -69,6 +69,7 @@ model Order {
   etsyOrderCreatedAt    DateTime
   buyerName             String
   buyerEmail            String?
+  deliveryEmail         String?
   listingId             String?
   personalization       String?
   pilotListingEligible  Boolean          @default(false)

@@ -215,7 +215,22 @@ export function UploadForm({ token }: { token: string }) {
             Upload one photo to start your portrait review.
           </AnimatedBlock>
 
-          <AnimatedBlock as="label" delay={0.08} className="uploadField">
+          <AnimatedBlock as="label" delay={0.08} className="uploadField uploadDeliveryEmailField">
+            <span className="uploadFieldLabel">Delivery email required</span>
+            <input
+              className="uploadTextInput"
+              type="email"
+              name="customerEmail"
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+            />
+            <span className="uploadFieldHint">
+              We&apos;ll deliver your finished portrait to this email address.
+            </span>
+          </AnimatedBlock>
+
+          <AnimatedBlock as="label" delay={0.12} className="uploadField">
             <span className="uploadFieldLabel">Pet name</span>
             <input
               className="uploadTextInput"
@@ -227,7 +242,7 @@ export function UploadForm({ token }: { token: string }) {
             />
           </AnimatedBlock>
 
-          <AnimatedBlock delay={0.14} className="uploadField">
+          <AnimatedBlock delay={0.16} className="uploadField">
             <span className="uploadFieldLabel">Font style</span>
             <div className="uploadStyleGrid" role="radiogroup" aria-label="Font style">
               {POSTER_FONT_OPTIONS.map((option) => {
@@ -264,7 +279,7 @@ export function UploadForm({ token }: { token: string }) {
             </div>
           </AnimatedBlock>
 
-          <AnimatedBlock delay={0.18} className="uploadField">
+          <AnimatedBlock delay={0.2} className="uploadField">
             <span className="uploadFieldLabel">Background colour</span>
             <div className="uploadColourGrid" role="radiogroup" aria-label="Background colour">
               {POSTER_BACKGROUND_OPTIONS.map((option) => {
@@ -294,7 +309,7 @@ export function UploadForm({ token }: { token: string }) {
             </div>
           </AnimatedBlock>
 
-          <AnimatedBlock delay={0.22} className="uploadField">
+          <AnimatedBlock delay={0.24} className="uploadField">
             <span className="uploadFieldLabel">New photo</span>
             <input
               id={photoInputId}
@@ -316,7 +331,7 @@ export function UploadForm({ token }: { token: string }) {
             </label>
           </AnimatedBlock>
 
-          <AnimatedBlock delay={0.26} className="uploadPosterPreview">
+          <AnimatedBlock delay={0.28} className="uploadPosterPreview">
             <PosterPreview
               petName={petNamePreview}
               fontStyle={selectedFontStyle}
@@ -324,7 +339,7 @@ export function UploadForm({ token }: { token: string }) {
             />
           </AnimatedBlock>
 
-          <AnimatedBlock delay={0.3} className="uploadSubmitDock">
+          <AnimatedBlock delay={0.32} className="uploadSubmitDock">
             <motion.button
               className="uploadSubmitButton"
               type="submit"

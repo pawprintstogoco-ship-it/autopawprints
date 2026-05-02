@@ -131,7 +131,12 @@ export default async function OrderDetailPage({
             <article className="card stack">
               <div className="eyebrow">Buyer</div>
               <strong>{order.buyerName}</strong>
-              <span className="muted">{order.buyerEmail ?? "No email captured"}</span>
+              <span className="muted">
+                Etsy: {order.buyerEmail ?? "No email captured"}
+              </span>
+              <span className="muted">
+                Delivery: {order.deliveryEmail ?? "Awaiting upload confirmation"}
+              </span>
               <span className="mono">Receipt {order.receiptId}</span>
             </article>
 

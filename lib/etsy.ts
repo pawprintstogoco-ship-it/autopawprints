@@ -77,7 +77,7 @@ export function buildDeliveryMessage(deliveryUrl: string) {
 }
 
 export function getEtsyScopes() {
-  return ["shops_r", "shops_w", "transactions_r"];
+  return ["shops_r", "shops_w", "transactions_r", "transactions_w"];
 }
 
 export async function createEtsyAuthorizeUrl() {
@@ -299,6 +299,36 @@ export async function syncPilotDigitalSaleMessage(uploadUrlExample: string) {
 
   if (!response.ok) {
     throw new Error(`Failed to update Etsy digital sale message: ${response.status}`);
+  }
+}
+
+export async function markEtsyReceiptComplete(receiptId: string) {
+  const {
+    ETSY_API_BASE_URL,
+    ETSY_CLIENT_ID,
+    ETSY_SHOP_ID
+  } = requireEnv();
+  const accessToken = await refreshEtsyAccessTokenIfNeeded();
+  const body = new URLSearchParams({
+    was_shipped: "true",
+    was_paid: "true"
+  });
+
+  const response = await fetch(
+    `${ETSY_API_BASE_URL}/application/shops/${ETSY_SHOP_ID}/receipts/${encodeURIComponent(receiptId)}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-api-key": ETSY_CLIENT_ID,
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      body
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to update Etsy receipt completion: ${response.status}`);
   }
 }
 

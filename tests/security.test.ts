@@ -33,6 +33,9 @@ beforeEach(() => {
     "http://localhost:3010/api/admin/oauth/google/callback";
   process.env.OPENAI_API_KEY = "test-key";
   process.env.STORAGE_ROOT = "./storage";
+  process.env.RESEND_API_KEY = "";
+  process.env.EMAIL_FROM = "PawPrints <hello@pawprintsca.com>";
+  process.env.OPS_EMAIL = "pawprintstogoco@gmail.com";
   process.env.DELIVERY_LINK_TTL_HOURS = "168";
   process.env.ETSY_CLIENT_ID = "etsy-client";
   process.env.ETSY_CLIENT_SECRET = "";
