@@ -171,6 +171,32 @@ describe("storage helpers", () => {
 });
 
 describe("email helpers", () => {
+  it("keeps default ops recipients when unrelated env validation fails", async () => {
+    const previousOpsEmail = process.env.OPS_EMAIL;
+    const previousEmailReplyTo = process.env.EMAIL_REPLY_TO;
+
+    process.env.OPS_EMAIL = "";
+    process.env.EMAIL_REPLY_TO = "not-an-email";
+
+    try {
+      const { requireEnv } = await import("../lib/env");
+      expect(requireEnv().OPS_EMAIL).toBe("pawprintstogoco@gmail.com");
+      expect(requireEnv().EMAIL_REPLY_TO).toBeUndefined();
+    } finally {
+      if (previousOpsEmail === undefined) {
+        delete process.env.OPS_EMAIL;
+      } else {
+        process.env.OPS_EMAIL = previousOpsEmail;
+      }
+
+      if (previousEmailReplyTo === undefined) {
+        delete process.env.EMAIL_REPLY_TO;
+      } else {
+        process.env.EMAIL_REPLY_TO = previousEmailReplyTo;
+      }
+    }
+  });
+
   it("normalizes and deduplicates customer recipients", async () => {
     const { getCustomerEmailRecipients } = await import("../lib/email");
 
