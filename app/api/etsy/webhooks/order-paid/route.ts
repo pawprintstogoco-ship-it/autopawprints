@@ -12,7 +12,7 @@ import {
   ingestOrderPaidWebhook,
   registerWebhookDelivery
 } from "@/lib/orders";
-import { requireEnv } from "@/lib/env";
+import { isEtsyPilotListingEligible, requireEnv } from "@/lib/env";
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -99,9 +99,11 @@ export async function POST(request: Request) {
       id: order.id,
       receiptId: order.receiptId,
       buyerName: order.buyerName,
-      pilotListingEligible:
-        normalized.listingId === env.ETSY_PILOT_LISTING_ID &&
-        (envelope.shopId ?? env.ETSY_SHOP_ID) === env.ETSY_SHOP_ID
+      pilotListingEligible: isEtsyPilotListingEligible({
+        shopId: envelope.shopId ?? env.ETSY_SHOP_ID,
+        listingId: normalized.listingId,
+        envValues: env
+      })
     });
 
     return NextResponse.json({ ok: true, orderId: order.id });
