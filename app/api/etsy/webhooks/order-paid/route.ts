@@ -65,6 +65,16 @@ export async function POST(request: Request) {
 
     const receipt = await fetchEtsyReceiptByResourceUrl(envelope.resourceUrl);
     const normalized = normalizeReceiptPayload(receipt);
+    const pilotListingEligible = isEtsyPilotListingEligible({
+      shopId: envelope.shopId ?? env.ETSY_SHOP_ID,
+      listingId: normalized.listingId,
+      envValues: env
+    });
+
+    if (pilotListingEligible && normalized.listingId) {
+      process.env.ETSY_PILOT_LISTING_ID = normalized.listingId;
+    }
+
     const order = await ingestOrderPaidWebhook({
       event_id: webhookId ?? undefined,
       event_type: envelope.eventType,
@@ -99,11 +109,7 @@ export async function POST(request: Request) {
       id: order.id,
       receiptId: order.receiptId,
       buyerName: order.buyerName,
-      pilotListingEligible: isEtsyPilotListingEligible({
-        shopId: envelope.shopId ?? env.ETSY_SHOP_ID,
-        listingId: normalized.listingId,
-        envValues: env
-      })
+      pilotListingEligible
     });
 
     return NextResponse.json({ ok: true, orderId: order.id });
