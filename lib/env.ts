@@ -42,6 +42,7 @@ const envSchema = z.object({
   ETSY_REDIRECT_URI: z.string().url(),
   ETSY_SHOP_ID: z.string().min(1),
   ETSY_PILOT_LISTING_ID: z.string().min(1),
+  ETSY_PILOT_LISTING_IDS: optionalString,
   ETSY_WEBHOOK_CALLBACK_URL: z.string().url(),
   ETSY_WEBHOOK_SIGNING_SECRET: z.string().min(1),
   ETSY_API_BASE_URL: z.string().url(),
@@ -81,6 +82,7 @@ const optionalFallbackKeys = [
   "EMAIL_FORWARD_TO",
   "OPS_EMAIL",
   "ETSY_CLIENT_SECRET",
+  "ETSY_PILOT_LISTING_IDS",
   "ETSY_DELIVERY_MESSAGE_TEMPLATE",
   "OPENCLAW_HOOK_URL",
   "OPENCLAW_HOOK_TOKEN",
@@ -121,4 +123,38 @@ export function requireEnv() {
   }
 
   return result.data;
+}
+
+export function getEtsyPilotListingIds(envValues = requireEnv()) {
+  const rawList = envValues.ETSY_PILOT_LISTING_IDS ?? "*";
+
+  return rawList
+    .split(",")
+    .map((listingId) => listingId.trim())
+    .filter(Boolean);
+}
+
+export function isEtsyPilotListingEligible({
+  shopId,
+  listingId,
+  envValues = requireEnv()
+}: {
+  shopId?: string | null;
+  listingId?: string | null;
+  envValues?: ReturnType<typeof requireEnv>;
+}) {
+  if (shopId !== envValues.ETSY_SHOP_ID) {
+    return false;
+  }
+
+  const allowedListingIds = getEtsyPilotListingIds(envValues);
+  const allowsAllListings = allowedListingIds.some(
+    (allowedListingId) => allowedListingId === "*" || allowedListingId.toLowerCase() === "all"
+  );
+
+  if (allowsAllListings) {
+    return true;
+  }
+
+  return Boolean(listingId && allowedListingIds.includes(listingId));
 }
