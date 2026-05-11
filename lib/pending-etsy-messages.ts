@@ -1,6 +1,7 @@
 import { MessageChannel, OrderStatus } from "@prisma/client";
 import { buildDigitalSaleMessage } from "@/lib/etsy";
 import { requireEnv } from "@/lib/env";
+import { getOpenClawCallbackInfo } from "@/lib/openclaw";
 import { prisma } from "@/lib/prisma";
 
 export async function getPendingInitialEtsyUploadMessages() {
@@ -53,6 +54,11 @@ export async function getPendingInitialEtsyUploadMessages() {
 
   return orders.map((order) => {
     const uploadUrl = `${env.APP_URL}/upload/${order.uploadToken}`;
+    const callback = getOpenClawCallbackInfo({
+      orderId: order.id,
+      receiptId: order.receiptId
+    });
+
     return {
       orderId: order.id,
       receiptId: order.receiptId,
@@ -61,6 +67,8 @@ export async function getPendingInitialEtsyUploadMessages() {
       orderUrl: `${env.APP_URL}/orders/${order.id}`,
       uploadUrl,
       initialMessage: buildDigitalSaleMessage(uploadUrl),
+      callbackUrl: callback.callbackUrl,
+      callbackToken: callback.callbackToken,
       createdAt: order.createdAt,
       recentEvents: order.messageEvents.map((event) => ({
         eventType: event.eventType,
