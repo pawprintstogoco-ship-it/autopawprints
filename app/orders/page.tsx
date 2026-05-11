@@ -52,13 +52,16 @@ export default async function OrdersPage({
           <article className="card stack">
             <div className="eyebrow">Manual flow</div>
             <strong className="opsMetric">{manualCount}</strong>
-            <span className="muted">Orders outside pilot listing</span>
+            <span className="muted">Orders needing manual handling</span>
           </article>
         </div>
 
         <div className="actions opsPrimaryActions">
-          <Link href="/etsy" className="button">
-            Etsy pilot setup
+          <Link href="/orders/etsy-messages" className="button">
+            Etsy messages
+          </Link>
+          <Link href="/etsy" className="buttonSecondary">
+            Etsy setup
           </Link>
           <Link href="/orders/files" className="buttonSecondary">
             Uploads
@@ -118,7 +121,7 @@ export default async function OrdersPage({
                   </td>
                   <td>
                     <span className="badge">
-                      {order.pilotListingEligible ? "Pilot listing" : "Manual"}
+                      {order.pilotListingEligible ? "Eligible" : "Manual"}
                     </span>
                   </td>
                   <td>{order.latestUploadName ?? "Waiting for upload"}</td>
