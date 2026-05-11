@@ -147,6 +147,21 @@ export async function recordInitialEtsyUploadMessageResult({
   ]);
 }
 
+export function getOpenClawCallbackInfo({
+  orderId,
+  receiptId
+}: {
+  orderId: string;
+  receiptId: string;
+}) {
+  const env = requireEnv();
+
+  return {
+    callbackUrl: `${env.APP_URL}/api/openclaw/etsy-message-result`,
+    callbackToken: createOpenClawCallbackToken(orderId, receiptId)
+  };
+}
+
 export function verifyOpenClawCallbackToken({
   orderId,
   receiptId,
