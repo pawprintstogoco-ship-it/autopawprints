@@ -1,22 +1,31 @@
 import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { getEtsyConnectionStatus } from "@/lib/orders";
+import { getEtsyPilotListingIds, requireEnv } from "@/lib/env";
 import { OpsTopNav } from "@/app/orders/ops-top-nav";
 
 export default async function EtsySetupPage() {
   await requireAdminSession();
   const status = await getEtsyConnectionStatus();
+  const listingIds = getEtsyPilotListingIds(requireEnv());
+  const allowsAllListings = listingIds.some(
+    (listingId) => listingId === "*" || listingId.toLowerCase() === "all"
+  );
+  const listingLabel = allowsAllListings ? "All shop listings" : listingIds.join(", ");
+  const listingHelp = allowsAllListings
+    ? "Every listing in this Etsy shop auto-enters the flow."
+    : "Only these listings auto-enter the flow.";
 
   return (
     <main className="shell">
       <OpsTopNav active="etsy" />
 
       <section className="hero">
-        <div className="eyebrow">Etsy pilot</div>
-        <h1>Connect the shop and lock the pilot listing.</h1>
+        <div className="eyebrow">Etsy setup</div>
+        <h1>Connect the shop and manage listing eligibility.</h1>
         <p>
-          This page handles Etsy OAuth, pilot-listing configuration, and the
-          digital sale message sync for the first live rollout.
+          This page handles Etsy OAuth, listing eligibility, and the digital sale
+          message sync for the live order flow.
         </p>
       </section>
 
@@ -31,9 +40,9 @@ export default async function EtsySetupPage() {
               </span>
             </article>
             <article className="card stack">
-              <div className="eyebrow">Pilot listing</div>
-              <strong>{status.pilotListingId}</strong>
-              <span className="muted">Only this listing auto-enters the flow.</span>
+              <div className="eyebrow">Eligible listings</div>
+              <strong>{listingLabel}</strong>
+              <span className="muted">{listingHelp}</span>
             </article>
             <article className="card stack">
               <div className="eyebrow">Webhook callback</div>
@@ -82,7 +91,7 @@ export default async function EtsySetupPage() {
             <strong>3. Register the paid-order webhook</strong>
             <span className="muted">
               Point Etsy's `order.paid` event to the callback URL shown here for
-              the pilot shop.
+              the connected shop.
             </span>
           </div>
         </aside>
