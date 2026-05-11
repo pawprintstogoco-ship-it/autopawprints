@@ -13,6 +13,11 @@ export async function getPendingInitialEtsyUploadMessages() {
     where: {
       status: OrderStatus.AWAITING_PHOTO,
       pilotListingEligible: true,
+      receiptId: {
+        not: {
+          startsWith: "demo-"
+        }
+      },
       messageEvents: {
         none: {
           eventType: {
