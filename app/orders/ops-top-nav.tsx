@@ -4,7 +4,8 @@ const navItems = [
   { href: "/orders", label: "Orders", key: "orders" },
   { href: "/orders/files", label: "Uploads", key: "uploads" },
   { href: "/orders/generated", label: "Generated", key: "generated" },
-  { href: "/etsy", label: "Etsy Pilot", key: "etsy" }
+  { href: "/orders/etsy-messages", label: "Etsy messages", key: "etsyMessages" },
+  { href: "/etsy", label: "Etsy Setup", key: "etsy" }
 ] as const;
 
 export function OpsTopNav({ active }: { active: (typeof navItems)[number]["key"] }) {
