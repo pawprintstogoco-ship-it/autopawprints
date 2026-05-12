@@ -7,14 +7,6 @@ import { createToken } from "@/lib/tokens";
 
 export async function POST(request: Request) {
   await requireAdminSession();
-
-  if (process.env.VERCEL_ENV === "production") {
-    return NextResponse.json(
-      { error: "Demo seeding is disabled in production" },
-      { status: 404 }
-    );
-  }
-
   const env = requireEnv();
   const seedCount = 6;
 
