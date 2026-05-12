@@ -15,6 +15,7 @@ export default async function EtsySetupPage() {
   const listingHelp = allowsAllListings
     ? "Every listing in this Etsy shop auto-enters the flow."
     : "Only these listings auto-enter the flow.";
+  const canSeedDemoOrders = process.env.VERCEL_ENV !== "production";
 
   return (
     <main className="shell">
@@ -59,11 +60,13 @@ export default async function EtsySetupPage() {
                 Sync digital sale message
               </button>
             </form>
-            <form action="/api/dev/seed-demo" method="post">
-              <button className="buttonSecondary" type="submit">
-                Seed 6 demo orders
-              </button>
-            </form>
+            {canSeedDemoOrders ? (
+              <form action="/api/dev/seed-demo" method="post">
+                <button className="buttonSecondary" type="submit">
+                  Seed 6 demo orders
+                </button>
+              </form>
+            ) : null}
             <Link href="/orders" className="buttonSecondary">
               Back to orders
             </Link>
