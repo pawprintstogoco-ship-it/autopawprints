@@ -3,7 +3,10 @@ import {
   DeliveryStatus,
   MessageChannel,
   OrderStatus,
-  RenderJobStatus
+  RenderJobStatus,
+  RenderQaKind,
+  RenderQaRecommendation,
+  RenderQaStatus
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -24,7 +27,12 @@ import {
 } from "@/lib/poster-styles";
 import { enqueueRenderJob } from "@/lib/queue";
 import { buildDigitalSaleMessage, markEtsyReceiptComplete } from "@/lib/etsy";
-import { analyzeImage, renderPortrait } from "@/lib/render";
+import {
+  analyzeImage,
+  renderPortrait,
+  type PetLikenessQaReport,
+  type PosterCompositionQaReport
+} from "@/lib/render";
 import { scheduleMissingPhotoReminders } from "@/lib/reminders";
 import { deleteObject, getBuffer, putBuffer } from "@/lib/storage";
 import { createToken } from "@/lib/tokens";
@@ -79,6 +87,40 @@ function getLatestBySlot<T extends { portraitSlotId: string | null; createdAt: D
   }
 
   return Array.from(latestBySlot.values());
+}
+
+function mapCompositionQaStatus(report: PosterCompositionQaReport) {
+  return report.warnings.some((warning) => warning === "pet_too_small_or_sparse")
+    ? RenderQaStatus.FAIL
+    : report.warnings.length > 0
+    ? RenderQaStatus.WARNING
+    : RenderQaStatus.PASS;
+}
+
+function mapCompositionQaRecommendation(report: PosterCompositionQaReport) {
+  return mapCompositionQaStatus(report) === RenderQaStatus.PASS
+    ? RenderQaRecommendation.APPROVE
+    : RenderQaRecommendation.MANUAL_REVIEW;
+}
+
+function mapLikenessQaStatus(report: PetLikenessQaReport) {
+  return report.severity === "fail"
+    ? RenderQaStatus.FAIL
+    : report.severity === "warning"
+    ? RenderQaStatus.WARNING
+    : RenderQaStatus.PASS;
+}
+
+function mapLikenessQaRecommendation(report: PetLikenessQaReport) {
+  return report.recommendation === "rerender"
+    ? RenderQaRecommendation.RERENDER
+    : report.recommendation === "manual_review"
+    ? RenderQaRecommendation.MANUAL_REVIEW
+    : RenderQaRecommendation.APPROVE;
+}
+
+function qaStatusIsBlocking(status: RenderQaStatus) {
+  return status === RenderQaStatus.FAIL;
 }
 
 async function ensureOrderPortraitSlots(orderId: string, client = prisma) {
@@ -643,7 +685,7 @@ export async function getOrderById(orderId: string) {
 
   await ensureOrderPortraitSlots(orderId);
 
-  const [uploads, artifacts, portraitSlots, messageEvents, auditLog] = await Promise.all([
+  const [uploads, artifacts, portraitSlots, qaReports, messageEvents, auditLog] = await Promise.all([
     withQueryFallback(
       "getOrderById uploads",
       () =>
@@ -677,6 +719,18 @@ export async function getOrderById(orderId: string) {
           ORDER BY s."slotNumber" ASC
         `,
       [] as Array<{ slot: Record<string, unknown> }>
+    ),
+    withQueryFallback(
+      "getOrderById QA reports",
+      () =>
+        prisma.$queryRaw<Array<{ report: Record<string, unknown> }>>`
+          SELECT row_to_json(rqr) AS "report"
+          FROM "RenderQaReport" rqr
+          WHERE rqr."orderId" = ${orderId}
+          ORDER BY rqr."createdAt" DESC
+          LIMIT 100
+        `,
+      [] as Array<{ report: Record<string, unknown> }>
     ),
     withQueryFallback(
       "getOrderById message events",
@@ -737,6 +791,23 @@ export async function getOrderById(orderId: string) {
       version: Number(artifact.version ?? 1),
       storageKey: String(artifact.storageKey ?? ""),
       createdAt: toDate(artifact.createdAt) ?? new Date(0)
+    })),
+    qaReports: qaReports.map(({ report }) => ({
+      id: String(report.id),
+      portraitSlotId: nullableString(report.portraitSlotId),
+      artifactId: nullableString(report.artifactId),
+      kind: String(report.kind ?? RenderQaKind.LIKENESS) as RenderQaKind,
+      status: String(report.status ?? RenderQaStatus.WARNING) as RenderQaStatus,
+      recommendation: String(
+        report.recommendation ?? RenderQaRecommendation.MANUAL_REVIEW
+      ) as RenderQaRecommendation,
+      summary: String(report.summary ?? ""),
+      issues: Array.isArray(report.issues) ? report.issues : [],
+      metadata:
+        report.metadata && typeof report.metadata === "object"
+          ? (report.metadata as Record<string, unknown>)
+          : {},
+      createdAt: toDate(report.createdAt) ?? new Date(0)
     })),
     messageEvents: messageEvents.map(({ event }) => ({
       id: String(event.id),
@@ -1155,36 +1226,78 @@ export async function processRenderJob(renderJobId: string) {
     const output = await renderPortrait({
       source,
       petName: upload.petName,
+      notes: upload.notes,
       fontStyle: posterFontStyleFromDb(upload.fontStyle),
       backgroundStyle: posterBackgroundStyleFromDb(upload.backgroundStyle),
       orderId: order.id,
       version
     });
+    const compositionQaStatus = mapCompositionQaStatus(output.compositionQa);
+    const likenessQaStatus = mapLikenessQaStatus(output.likenessQa);
+    const hasBlockingQa =
+      qaStatusIsBlocking(compositionQaStatus) || qaStatusIsBlocking(likenessQaStatus);
 
-    await prisma.$transaction([
-      prisma.artifact.createMany({
+    await prisma.$transaction(async (tx) => {
+      const previewArtifact = await tx.artifact.create({
+        data: {
+          orderId: order.id,
+          portraitSlotId: renderJob.portraitSlotId,
+          renderJobId: renderJob.id,
+          kind: ArtifactKind.PREVIEW,
+          version,
+          storageKey: output.previewKey,
+          mimeType: "image/png"
+        }
+      });
+      const finalArtifact = await tx.artifact.create({
+        data: {
+          orderId: order.id,
+          portraitSlotId: renderJob.portraitSlotId,
+          renderJobId: renderJob.id,
+          kind: ArtifactKind.FINAL_PNG,
+          version,
+          storageKey: output.finalPngKey,
+          mimeType: "image/png"
+        }
+      });
+
+      await tx.renderQaReport.createMany({
         data: [
           {
             orderId: order.id,
             portraitSlotId: renderJob.portraitSlotId,
             renderJobId: renderJob.id,
-            kind: ArtifactKind.PREVIEW,
-            version,
-            storageKey: output.previewKey,
-            mimeType: "image/png"
+            artifactId: finalArtifact.id,
+            kind: RenderQaKind.COMPOSITION,
+            status: compositionQaStatus,
+            recommendation: mapCompositionQaRecommendation(output.compositionQa),
+            summary: output.compositionQa.warnings.length
+              ? `Composition QA warnings: ${output.compositionQa.warnings.join(", ")}`
+              : "Composition QA passed.",
+            issues: output.compositionQa.warnings as never,
+            metadata: output.compositionQa as never
           },
           {
             orderId: order.id,
             portraitSlotId: renderJob.portraitSlotId,
             renderJobId: renderJob.id,
-            kind: ArtifactKind.FINAL_PNG,
-            version,
-            storageKey: output.finalPngKey,
-            mimeType: "image/png"
+            artifactId: finalArtifact.id,
+            kind: RenderQaKind.LIKENESS,
+            status: likenessQaStatus,
+            recommendation: mapLikenessQaRecommendation(output.likenessQa),
+            summary: output.likenessQa.summary,
+            issues: output.likenessQa.issues as never,
+            metadata: {
+              ...output.likenessQa,
+              traitAnalysis: output.traitAnalysis,
+              portraitBaseKey: output.portraitBaseKey,
+              previewArtifactId: previewArtifact.id
+            } as never
           }
         ]
-      }),
-      prisma.renderJob.update({
+      });
+
+      await tx.renderJob.update({
         where: {
           id: renderJob.id
         },
@@ -1193,24 +1306,28 @@ export async function processRenderJob(renderJobId: string) {
           completedAt: new Date(),
           failureReason: null
         }
-      }),
-      prisma.order.update({
+      });
+      await tx.order.update({
         where: {
           id: order.id
         },
         data: {
           auditLog: {
             create: {
-              action: "render.completed",
+              action: hasBlockingQa ? "render.qa_failed" : "render.completed",
               metadata: {
                 ...output,
-                portraitSlotId: renderJob.portraitSlotId
+                portraitSlotId: renderJob.portraitSlotId,
+                qaStatus: {
+                  composition: compositionQaStatus,
+                  likeness: likenessQaStatus
+                }
               }
             }
           }
         }
-      })
-    ]);
+      });
+    });
 
     const [totalSlots, uploadedSlots, blurryUploads, finalSlotGroups] = await Promise.all([
       prisma.orderPortraitSlot.count({
@@ -1252,7 +1369,7 @@ export async function processRenderJob(renderJobId: string) {
       },
       data: {
         status:
-          blurryUploads > 0
+          blurryUploads > 0 || hasBlockingQa
             ? OrderStatus.NEEDS_MANUAL_ATTENTION
             : finalSlotGroups.length >= Math.max(1, totalSlots)
             ? OrderStatus.AWAITING_APPROVAL
@@ -1262,7 +1379,7 @@ export async function processRenderJob(renderJobId: string) {
       }
     });
 
-    if (finalSlotGroups.length >= Math.max(1, totalSlots)) {
+    if (!hasBlockingQa && finalSlotGroups.length >= Math.max(1, totalSlots)) {
       const finalArtifacts = await prisma.artifact.findMany({
         where: {
           orderId: order.id,
@@ -1353,18 +1470,25 @@ export async function approveOrder(orderId: string) {
     throw new Error("Order not found");
   }
 
-  const [finalArtifact, totalSlots, finalSlotGroups] = await Promise.all([
-    prisma.artifact.findFirst({
+  const [finalArtifacts, totalSlots, finalSlotGroups] = await Promise.all([
+    prisma.artifact.findMany({
       where: {
         orderId: order.id,
         kind: ArtifactKind.FINAL_PNG
       },
-      orderBy: {
-        createdAt: "desc"
-      },
+      orderBy: [
+        {
+          version: "desc"
+        },
+        {
+          createdAt: "desc"
+        }
+      ],
       select: {
         id: true,
-        storageKey: true
+        portraitSlotId: true,
+        storageKey: true,
+        createdAt: true
       }
     }),
     prisma.orderPortraitSlot.count({
@@ -1384,12 +1508,35 @@ export async function approveOrder(orderId: string) {
     })
   ]);
 
-  if (!finalArtifact) {
+  const latestFinalArtifacts = getLatestBySlot(finalArtifacts);
+
+  if (latestFinalArtifacts.length === 0) {
     throw new Error("Cannot approve before a final portrait is generated");
   }
 
   if (finalSlotGroups.length < Math.max(1, totalSlots)) {
     throw new Error("Cannot approve before every purchased portrait has a final image");
+  }
+
+  const blockingQaReports = await prisma.renderQaReport.findMany({
+    where: {
+      artifactId: {
+        in: latestFinalArtifacts.map((artifact) => artifact.id)
+      },
+      status: RenderQaStatus.FAIL
+    },
+    select: {
+      kind: true,
+      summary: true
+    }
+  });
+
+  if (blockingQaReports.length > 0) {
+    throw new Error(
+      `Cannot approve while render QA has blocking failures: ${blockingQaReports
+        .map((report) => `${report.kind}: ${report.summary}`)
+        .join("; ")}`
+    );
   }
 
   const recipients = getCustomerEmailRecipients(order.buyerEmail, order.deliveryEmail);

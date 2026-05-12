@@ -72,6 +72,18 @@ export default async function OrderDetailPage({
     ? `Your portrait is ready. Save your final PNG${deliveryUrls.length > 1 ? "s" : ""} here:\n${deliveryUrls.join("\n")}`
     : undefined;
   const uploadsBySlot = new Map(order.uploads.map((upload) => [upload.portraitSlotId, upload]));
+  const latestQaByArtifact = new Map<string, typeof order.qaReports>();
+  for (const report of order.qaReports) {
+    if (!report.artifactId) {
+      continue;
+    }
+    const reports = latestQaByArtifact.get(report.artifactId) ?? [];
+    reports.push(report);
+    latestQaByArtifact.set(report.artifactId, reports);
+  }
+  const latestFinalQaReports = Array.from(latestFinalsBySlot.values()).flatMap((artifact) =>
+    latestQaByArtifact.get(artifact.id) ?? []
+  );
 
   return (
     <main className="shell">
@@ -222,6 +234,36 @@ export default async function OrderDetailPage({
 
         <aside className="stack">
           <section className="panel panel-pad stack opsPanel">
+            <div className="eyebrow">Render QA</div>
+            {latestFinalQaReports.length === 0 ? (
+              <div className="card opsEmptyCard">No QA reports yet.</div>
+            ) : (
+              latestFinalQaReports.map((report) => (
+                <div key={report.id} className="card stack">
+                  <strong>
+                    {report.kind} · {formatQaStatus(report.status)}
+                  </strong>
+                  <span className="muted">Recommendation: {report.recommendation.replaceAll("_", " ")}</span>
+                  <span>{report.summary}</span>
+                  {report.issues.length > 0 ? (
+                    <ul className="muted">
+                      {report.issues.slice(0, 5).map((issue, index) => (
+                        <li key={`${report.id}-${index}`}>{formatQaIssue(issue)}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {Array.isArray(report.metadata.criticalTraitsChecked) &&
+                  report.metadata.criticalTraitsChecked.length > 0 ? (
+                    <span className="mono">
+                      Checked: {report.metadata.criticalTraitsChecked.slice(0, 4).join("; ")}
+                    </span>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </section>
+
+          <section className="panel panel-pad stack opsPanel">
             <div className="eyebrow">Artifacts</div>
             {order.artifacts.map((artifact) => (
               <a
@@ -272,4 +314,19 @@ function safelyDecode(value: string) {
   } catch {
     return value;
   }
+}
+
+function formatQaStatus(status: string) {
+  return status.toLowerCase().replaceAll("_", " ");
+}
+
+function formatQaIssue(issue: unknown) {
+  if (issue && typeof issue === "object") {
+    const record = issue as Record<string, unknown>;
+    const severity = String(record.severity ?? "warning");
+    const detail = String(record.detail ?? record.code ?? "Review required");
+    return `${severity}: ${detail}`;
+  }
+
+  return String(issue);
 }

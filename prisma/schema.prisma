@@ -34,6 +34,23 @@ enum ArtifactKind {
   FINAL_PDF
 }
 
+enum RenderQaKind {
+  COMPOSITION
+  LIKENESS
+}
+
+enum RenderQaStatus {
+  PASS
+  WARNING
+  FAIL
+}
+
+enum RenderQaRecommendation {
+  APPROVE
+  RERENDER
+  MANUAL_REVIEW
+}
+
 enum DeliveryStatus {
   PENDING
   SENT
@@ -91,6 +108,7 @@ model Order {
   uploads               CustomerUpload[]
   renderJobs            RenderJob[]
   artifacts             Artifact[]
+  qaReports             RenderQaReport[]
   messageEvents         MessageEvent[]
   deliveryEvents        DeliveryEvent[]
   auditLog              AuditLog[]
@@ -122,6 +140,7 @@ model OrderPortraitSlot {
   uploads      CustomerUpload[]
   renderJobs   RenderJob[]
   artifacts    Artifact[]
+  qaReports    RenderQaReport[]
 
   @@unique([orderId, slotNumber])
   @@index([orderItemId])
@@ -162,6 +181,7 @@ model RenderJob {
   createdAt      DateTime        @default(now())
   order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   portraitSlot   OrderPortraitSlot? @relation(fields: [portraitSlotId], references: [id], onDelete: SetNull)
+  qaReports       RenderQaReport[]
 
   @@index([portraitSlotId])
 }
@@ -178,8 +198,33 @@ model Artifact {
   createdAt   DateTime     @default(now())
   order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   portraitSlot OrderPortraitSlot? @relation(fields: [portraitSlotId], references: [id], onDelete: SetNull)
+  qaReports   RenderQaReport[]
 
   @@index([portraitSlotId])
+}
+
+model RenderQaReport {
+  id             String                 @id @default(cuid())
+  orderId        String
+  portraitSlotId String?
+  renderJobId    String?
+  artifactId     String?
+  kind           RenderQaKind
+  status         RenderQaStatus
+  recommendation RenderQaRecommendation
+  summary        String
+  issues         Json
+  metadata       Json
+  createdAt      DateTime               @default(now())
+  order          Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  portraitSlot   OrderPortraitSlot?     @relation(fields: [portraitSlotId], references: [id], onDelete: SetNull)
+  renderJob      RenderJob?             @relation(fields: [renderJobId], references: [id], onDelete: SetNull)
+  artifact       Artifact?              @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, kind, createdAt])
+  @@index([portraitSlotId, kind, createdAt])
+  @@index([renderJobId])
+  @@index([artifactId])
 }
 
 model MessageEvent {

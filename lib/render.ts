@@ -12,6 +12,7 @@ import { putBuffer } from "@/lib/storage";
 type RenderInput = {
   source: Buffer;
   petName: string;
+  notes?: string | null;
   fontStyle: PosterFontStyle;
   backgroundStyle: PosterBackgroundStyle;
   orderId: string;
@@ -21,9 +22,13 @@ type RenderInput = {
 export type RenderOutput = {
   previewKey: string;
   finalPngKey: string;
+  portraitBaseKey: string;
   blurScore: number;
   width: number;
   height: number;
+  traitAnalysis: PetTraitAnalysis;
+  likenessQa: PetLikenessQaReport;
+  compositionQa: PosterCompositionQaReport;
 };
 
 type RgbaColor = {
@@ -61,6 +66,41 @@ export type PosterCompositionQaReport = {
   warnings: string[];
 };
 
+export type PetTraitAnalysis = {
+  species: string | null;
+  breedGuess: string | null;
+  eyeDetails: {
+    left: string | null;
+    right: string | null;
+    heterochromia: boolean;
+    confidence: "low" | "medium" | "high";
+  };
+  coatColors: string[];
+  facialMarkings: string[];
+  distinctiveFeatures: string[];
+  criticalDetails: string[];
+  customerNotesUsed: string[];
+  uncertainty: string[];
+};
+
+export type PetLikenessQaReport = {
+  passed: boolean;
+  severity: "pass" | "warning" | "fail";
+  recommendation: "approve" | "rerender" | "manual_review";
+  summary: string;
+  issues: Array<{
+    code: string;
+    severity: "warning" | "fail";
+    detail: string;
+  }>;
+  criticalTraitsChecked: string[];
+};
+
+type PosterCompositionOutput = {
+  buffer: Buffer;
+  qa: PosterCompositionQaReport;
+};
+
 const FINAL_WIDTH = 1800;
 const FINAL_HEIGHT = 2400;
 const TITLE_BAND_TOP = 120;
@@ -72,6 +112,7 @@ const PORTRAIT_AREA_WIDTH = 1480;
 const PORTRAIT_AREA_HEIGHT = FINAL_HEIGHT - PORTRAIT_AREA_TOP + 92;
 const OPENAI_RENDER_TIMEOUT_MS = 90_000;
 const OPENAI_IMAGE_DOWNLOAD_TIMEOUT_MS = 45_000;
+const OPENAI_QA_TIMEOUT_MS = 60_000;
 const BUST_EXTENSION_HEIGHT = 240;
 const PORTRAIT_BOTTOM_BLEED = 92;
 const MIN_BOTTOM_TAIL_ROWS = 28;
@@ -103,16 +144,26 @@ export async function analyzeImage(source: Buffer) {
 export async function renderPortrait({
   source,
   petName,
+  notes,
   fontStyle,
   backgroundStyle,
   orderId,
   version
 }: RenderInput): Promise<RenderOutput> {
   const { blurScore, width, height } = await analyzeImage(source);
-  const portraitBase = await createPortraitBase(source, petName);
-  const finalPngBuffer = await buildPosterPng(portraitBase, petName, {
+  const traitAnalysis = await extractPetTraitAnalysis(source, petName, notes);
+  const portraitBase = await createPortraitBase(source, petName, traitAnalysis);
+  const poster = await buildPosterPng(portraitBase, petName, {
     fontStyle,
     backgroundStyle
+  });
+  const finalPngBuffer = poster.buffer;
+  const likenessQa = await analyzePetLikeness({
+    source,
+    rendered: portraitBase,
+    petName,
+    notes,
+    traitAnalysis
   });
   const previewBuffer = await sharp(finalPngBuffer)
     .resize(1080, 1440, {
@@ -126,18 +177,24 @@ export async function renderPortrait({
   const artifactBaseName = buildArtifactBaseName(petName);
   const previewKey = `${prefix}/${artifactBaseName}_preview.png`;
   const finalPngKey = `${prefix}/${artifactBaseName}_final.png`;
+  const portraitBaseKey = `${prefix}/${artifactBaseName}_portrait.png`;
 
   await Promise.all([
     putBuffer(previewKey, previewBuffer),
-    putBuffer(finalPngKey, finalPngBuffer)
+    putBuffer(finalPngKey, finalPngBuffer),
+    putBuffer(portraitBaseKey, portraitBase)
   ]);
 
   return {
     previewKey,
     finalPngKey,
+    portraitBaseKey,
     blurScore,
     width: metadata.width ?? width,
-    height: metadata.height ?? height
+    height: metadata.height ?? height,
+    traitAnalysis,
+    likenessQa,
+    compositionQa: poster.qa
   };
 }
 
@@ -151,7 +208,7 @@ async function buildPosterPng(
     fontStyle: PosterFontStyle;
     backgroundStyle: PosterBackgroundStyle;
   }
-) {
+): Promise<PosterCompositionOutput> {
   const artWidth = PORTRAIT_AREA_WIDTH;
   const artHeight = PORTRAIT_AREA_HEIGHT;
   const artLeft = Math.round((FINAL_WIDTH - artWidth) / 2);
@@ -254,7 +311,10 @@ async function buildPosterPng(
   logPosterCompositionQa("draft", draftQa, corrections);
 
   if (!corrections.portraitOffsetX) {
-    return draftPoster;
+    return {
+      buffer: draftPoster,
+      qa: draftQa
+    };
   }
 
   const correctedPoster = await composePosterPng(compositionInput, corrections);
@@ -262,7 +322,10 @@ async function buildPosterPng(
 
   logPosterCompositionQa("corrected", correctedQa);
 
-  return correctedPoster;
+  return {
+    buffer: correctedPoster,
+    qa: correctedQa
+  };
 }
 
 async function composePosterPng(
@@ -431,7 +494,11 @@ function logPosterCompositionQa(
   );
 }
 
-async function createPortraitBase(source: Buffer, petName: string) {
+async function createPortraitBase(
+  source: Buffer,
+  petName: string,
+  traitAnalysis: PetTraitAnalysis
+) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -441,7 +508,7 @@ async function createPortraitBase(source: Buffer, petName: string) {
 
   try {
     console.log(`[render] generating AI portrait for ${petName}...`);
-    return await generateAiPortrait(source, petName);
+    return await generateAiPortrait(source, petName, traitAnalysis);
   } catch (error) {
     console.error("[render] AI generation failed!");
     // Rethrow to let the GitHub Action fail and show the error log
@@ -449,7 +516,11 @@ async function createPortraitBase(source: Buffer, petName: string) {
   }
 }
 
-async function generateAiPortrait(source: Buffer, petName: string) {
+async function generateAiPortrait(
+  source: Buffer,
+  petName: string,
+  traitAnalysis: PetTraitAnalysis
+) {
   const { OPENAI_API_KEY, OPENAI_IMAGE_MODEL } = requireEnv();
   const editedSource = await sharp(source)
     .resize(1024, 1536, {
@@ -474,6 +545,7 @@ async function generateAiPortrait(source: Buffer, petName: string) {
       "Do not reinterpret, beautify, cartoonize, simplify away, or generalize the pet.",
       "",
       "Preserve exact identity with high fidelity, including:",
+      ...formatTraitPromptSection(traitAnalysis),
       "- exact face shape and skull proportions",
       "- eye shape, size, spacing, tilt, and color",
       "- nose shape, size, placement, and nostril structure",
@@ -666,6 +738,322 @@ async function generateAiPortrait(source: Buffer, petName: string) {
   }
 
   throw new Error("OpenAI image edit returned no image data");
+}
+
+type OpenAiChatJsonResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+    };
+  }>;
+};
+
+const traitAnalysisSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "species",
+    "breedGuess",
+    "eyeDetails",
+    "coatColors",
+    "facialMarkings",
+    "distinctiveFeatures",
+    "criticalDetails",
+    "customerNotesUsed",
+    "uncertainty"
+  ],
+  properties: {
+    species: { type: ["string", "null"] },
+    breedGuess: { type: ["string", "null"] },
+    eyeDetails: {
+      type: "object",
+      additionalProperties: false,
+      required: ["left", "right", "heterochromia", "confidence"],
+      properties: {
+        left: { type: ["string", "null"] },
+        right: { type: ["string", "null"] },
+        heterochromia: { type: "boolean" },
+        confidence: { type: "string", enum: ["low", "medium", "high"] }
+      }
+    },
+    coatColors: { type: "array", items: { type: "string" } },
+    facialMarkings: { type: "array", items: { type: "string" } },
+    distinctiveFeatures: { type: "array", items: { type: "string" } },
+    criticalDetails: { type: "array", items: { type: "string" } },
+    customerNotesUsed: { type: "array", items: { type: "string" } },
+    uncertainty: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+const likenessQaSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["passed", "severity", "recommendation", "summary", "issues", "criticalTraitsChecked"],
+  properties: {
+    passed: { type: "boolean" },
+    severity: { type: "string", enum: ["pass", "warning", "fail"] },
+    recommendation: { type: "string", enum: ["approve", "rerender", "manual_review"] },
+    summary: { type: "string" },
+    issues: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["code", "severity", "detail"],
+        properties: {
+          code: { type: "string" },
+          severity: { type: "string", enum: ["warning", "fail"] },
+          detail: { type: "string" }
+        }
+      }
+    },
+    criticalTraitsChecked: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+export async function extractPetTraitAnalysis(
+  source: Buffer,
+  petName: string,
+  notes?: string | null
+): Promise<PetTraitAnalysis> {
+  const prompt = [
+    `Analyze the uploaded reference photo for a custom pet portrait of ${petName}.`,
+    "Return only observable traits that the renderer must preserve.",
+    "Pay special attention to eye color, whether the two eyes are different colors, facial markings, coat color transitions, muzzle/nose shape, ear shape, and small identity details.",
+    "If customer notes mention a visual detail, include it in customerNotesUsed and criticalDetails when relevant.",
+    notes?.trim() ? `Customer notes: ${notes.trim()}` : "Customer notes: none provided."
+  ].join("\n");
+
+  return normalizeTraitAnalysis(
+    await callOpenAiVisionJson<PetTraitAnalysis>({
+      prompt,
+      images: [{ label: "source reference", buffer: source }],
+      schemaName: "pet_trait_analysis",
+      schema: traitAnalysisSchema
+    })
+  );
+}
+
+export async function analyzePetLikeness({
+  source,
+  rendered,
+  petName,
+  notes,
+  traitAnalysis
+}: {
+  source: Buffer;
+  rendered: Buffer;
+  petName: string;
+  notes?: string | null;
+  traitAnalysis: PetTraitAnalysis;
+}): Promise<PetLikenessQaReport> {
+  const criticalDetails = traitAnalysis.criticalDetails.length
+    ? traitAnalysis.criticalDetails.join("; ")
+    : "No specific critical details were extracted; compare all visible identity traits.";
+  const prompt = [
+    `Compare the source photo and generated portrait asset for ${petName}.`,
+    "Decide whether the generated portrait preserves the same pet identity.",
+    "Hard-fail missing or changed identity-critical details, especially mismatched eye colors / heterochromia, wrong eye color, major facial marking changes, wrong coat colors, missing distinctive patches, altered muzzle/nose shape, wrong species/breed, or invented accessories.",
+    "Warnings are for minor stylization drift that should be reviewed but may still be acceptable.",
+    `Extracted critical details: ${criticalDetails}`,
+    `Extracted eye details: left=${traitAnalysis.eyeDetails.left ?? "unknown"}; right=${traitAnalysis.eyeDetails.right ?? "unknown"}; heterochromia=${traitAnalysis.eyeDetails.heterochromia}; confidence=${traitAnalysis.eyeDetails.confidence}`,
+    notes?.trim() ? `Customer notes: ${notes.trim()}` : "Customer notes: none provided."
+  ].join("\n");
+
+  return normalizeLikenessQa(
+    await callOpenAiVisionJson<PetLikenessQaReport>({
+      prompt,
+      images: [
+        { label: "source reference", buffer: source },
+        { label: "generated portrait", buffer: rendered }
+      ],
+      schemaName: "pet_likeness_qa",
+      schema: likenessQaSchema
+    })
+  );
+}
+
+function formatTraitPromptSection(traitAnalysis: PetTraitAnalysis) {
+  const lines = ["MUST-PRESERVE SOURCE TRAITS IDENTIFIED BEFORE RENDERING:"];
+
+  if (traitAnalysis.eyeDetails.heterochromia) {
+    lines.push(
+      `- CRITICAL: preserve heterochromia exactly: left eye ${traitAnalysis.eyeDetails.left ?? "unknown color"}, right eye ${traitAnalysis.eyeDetails.right ?? "unknown color"}. Do not make the eyes match.`
+    );
+  } else if (traitAnalysis.eyeDetails.left || traitAnalysis.eyeDetails.right) {
+    lines.push(
+      `- Preserve visible eye color exactly: left eye ${traitAnalysis.eyeDetails.left ?? "unknown"}, right eye ${traitAnalysis.eyeDetails.right ?? "unknown"}.`
+    );
+  }
+
+  for (const detail of traitAnalysis.criticalDetails.slice(0, 12)) {
+    lines.push(`- ${detail}`);
+  }
+
+  for (const note of traitAnalysis.customerNotesUsed.slice(0, 5)) {
+    lines.push(`- Customer-provided detail: ${note}`);
+  }
+
+  return lines.length > 1 ? [...lines, ""] : [];
+}
+
+async function callOpenAiVisionJson<T>({
+  prompt,
+  images,
+  schemaName,
+  schema
+}: {
+  prompt: string;
+  images: Array<{ label: string; buffer: Buffer }>;
+  schemaName: string;
+  schema: Record<string, unknown>;
+}): Promise<T> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_QA_MODEL || "gpt-4.1-mini";
+
+  if (!apiKey) {
+    throw new Error("Missing OPENAI_API_KEY. Worker cannot perform visual QA.");
+  }
+
+  const content: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string; detail: "high" } }
+  > = [{ type: "text", text: prompt }];
+
+  for (const image of images) {
+    content.push({ type: "text", text: image.label });
+    content.push({
+      type: "image_url",
+      image_url: {
+        url: await toVisionDataUrl(image.buffer),
+        detail: "high"
+      }
+    });
+  }
+
+  const response = await fetchWithTimeout(
+    "https://api.openai.com/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "user",
+            content
+          }
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: schemaName,
+            strict: true,
+            schema
+          }
+        }
+      })
+    },
+    OPENAI_QA_TIMEOUT_MS,
+    `OpenAI visual QA timed out for ${schemaName}`
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI visual QA failed for ${schemaName}: ${response.status} ${errorText}`);
+  }
+
+  const payload = (await response.json()) as OpenAiChatJsonResponse;
+  const contentText = payload.choices?.[0]?.message?.content;
+
+  if (!contentText) {
+    throw new Error(`OpenAI visual QA returned no JSON content for ${schemaName}`);
+  }
+
+  return JSON.parse(contentText) as T;
+}
+
+async function toVisionDataUrl(buffer: Buffer) {
+  const png = await sharp(buffer)
+    .resize(1280, 1280, {
+      fit: "inside",
+      withoutEnlargement: true
+    })
+    .png()
+    .toBuffer();
+
+  return `data:image/png;base64,${png.toString("base64")}`;
+}
+
+function normalizeTraitAnalysis(input: PetTraitAnalysis): PetTraitAnalysis {
+  return {
+    species: nullableText(input.species),
+    breedGuess: nullableText(input.breedGuess),
+    eyeDetails: {
+      left: nullableText(input.eyeDetails?.left),
+      right: nullableText(input.eyeDetails?.right),
+      heterochromia: Boolean(input.eyeDetails?.heterochromia),
+      confidence: normalizeConfidence(input.eyeDetails?.confidence)
+    },
+    coatColors: cleanStringArray(input.coatColors),
+    facialMarkings: cleanStringArray(input.facialMarkings),
+    distinctiveFeatures: cleanStringArray(input.distinctiveFeatures),
+    criticalDetails: cleanStringArray(input.criticalDetails),
+    customerNotesUsed: cleanStringArray(input.customerNotesUsed),
+    uncertainty: cleanStringArray(input.uncertainty)
+  };
+}
+
+function normalizeLikenessQa(input: PetLikenessQaReport): PetLikenessQaReport {
+  const issues: PetLikenessQaReport["issues"] = Array.isArray(input.issues)
+    ? input.issues
+        .map((issue) => ({
+          code: String(issue.code || "likeness_issue"),
+          severity: (issue.severity === "fail" ? "fail" : "warning") as "fail" | "warning",
+          detail: String(issue.detail || "Review generated portrait against the source photo.")
+        }))
+        .slice(0, 20)
+    : [];
+  const hasFail = issues.some((issue) => issue.severity === "fail");
+  const severity = hasFail
+    ? "fail"
+    : input.severity === "warning"
+    ? "warning"
+    : input.severity === "fail"
+    ? "fail"
+    : "pass";
+
+  return {
+    passed: severity === "pass",
+    severity,
+    recommendation:
+      severity === "fail"
+        ? "manual_review"
+        : input.recommendation === "rerender" || input.recommendation === "manual_review"
+        ? input.recommendation
+        : "approve",
+    summary: String(input.summary || (severity === "pass" ? "Likeness QA passed." : "Likeness QA needs review.")),
+    issues,
+    criticalTraitsChecked: cleanStringArray(input.criticalTraitsChecked)
+  };
+}
+
+function cleanStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item).trim()).filter(Boolean).slice(0, 30)
+    : [];
+}
+
+function nullableText(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text ? text : null;
+}
+
+function normalizeConfidence(value: unknown): "low" | "medium" | "high" {
+  return value === "high" || value === "medium" || value === "low" ? value : "low";
 }
 
 async function fetchWithTimeout(
