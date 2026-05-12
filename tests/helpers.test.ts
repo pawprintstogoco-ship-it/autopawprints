@@ -142,6 +142,18 @@ describe("etsy helpers", () => {
   });
 });
 
+describe("order quantity helpers", () => {
+  it("calculates one portrait slot per purchased quantity", async () => {
+    const { calculateRequiredPortraitSlots } = await import("../lib/orders");
+
+    expect(calculateRequiredPortraitSlots([])).toBe(1);
+    expect(calculateRequiredPortraitSlots([{ quantity: 1 }])).toBe(1);
+    expect(calculateRequiredPortraitSlots([{ quantity: 2 }])).toBe(2);
+    expect(calculateRequiredPortraitSlots([{ quantity: 2 }, { quantity: 3 }])).toBe(5);
+    expect(calculateRequiredPortraitSlots([{ quantity: 0 }, { quantity: undefined }])).toBe(2);
+  });
+});
+
 describe("storage helpers", () => {
   it("normalizes redirect targets to internal paths", async () => {
     const { getSafeRedirectPath } = await import("../lib/http");

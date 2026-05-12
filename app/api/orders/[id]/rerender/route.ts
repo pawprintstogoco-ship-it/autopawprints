@@ -13,7 +13,9 @@ export async function POST(
   const redirectUrl = new URL(`/orders/${id}`, request.url);
 
   try {
-    await rerenderOrder(id);
+    const formData = await request.formData();
+    const portraitSlotId = String(formData.get("portraitSlotId") ?? "") || undefined;
+    await rerenderOrder(id, { portraitSlotId });
     redirectUrl.searchParams.set("rerenderStarted", "1");
   } catch (error) {
     console.error(`Rerender failed for order ${id}`, error);

@@ -14,6 +14,19 @@ export default async function DownloadPage({
   }
 
   await recordDeliveryOpen(order.id);
+  const finalArtifacts = order.artifacts
+    .filter((artifact) => artifact.kind === "FINAL_PNG")
+    .sort((a, b) => b.version - a.version || b.createdAt.getTime() - a.createdAt.getTime());
+  const latestFinalsBySlot = new Map<string, (typeof finalArtifacts)[number]>();
+
+  for (const artifact of finalArtifacts) {
+    const key = artifact.portraitSlotId ?? artifact.id;
+    if (!latestFinalsBySlot.has(key)) {
+      latestFinalsBySlot.set(key, artifact);
+    }
+  }
+
+  const latestFinalArtifacts = Array.from(latestFinalsBySlot.values());
 
   return (
     <main className="shell">
@@ -27,16 +40,19 @@ export default async function DownloadPage({
       </section>
 
       <section className="panel panel-pad cards">
-        {order.artifacts
-          .filter((artifact) => artifact.kind === "FINAL_PNG")
-          .map((artifact) => (
+        {latestFinalArtifacts
+          .map((artifact, index) => (
             <a
-              href={`/api/files/final/${token}`}
+              href={`/api/files/final/${token}?artifactId=${artifact.id}`}
               key={artifact.id}
               className="card stack"
               download
             >
-              <strong>{artifact.kind.replaceAll("_", " ")}</strong>
+              <strong>
+                {latestFinalArtifacts.length > 1
+                  ? `FINAL PNG ${index + 1}`
+                  : artifact.kind.replaceAll("_", " ")}
+              </strong>
               <span className="muted">{artifact.mimeType}</span>
             </a>
           ))}

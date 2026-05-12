@@ -50,14 +50,28 @@ export default async function OrderDetailPage({
   const preview = order.artifacts.find((artifact) => artifact.kind === "PREVIEW");
   const initialUrl = `${origin}/upload/${order.uploadToken}`;
   const initialMessage = `Thank you for your order. Please upload your pet's photo here so this helps the artist draw the details accurately:\n${initialUrl}`;
-  const readyImageUrl = `${origin}/api/files/final/${order.uploadToken}`;
+  const finalArtifacts = order.artifacts
+    .filter((artifact) => artifact.kind === "FINAL_PNG")
+    .sort((a, b) => b.version - a.version || b.createdAt.getTime() - a.createdAt.getTime());
+  const latestFinalsBySlot = new Map<string, (typeof finalArtifacts)[number]>();
+  for (const artifact of finalArtifacts) {
+    const key = artifact.portraitSlotId ?? artifact.id;
+    if (!latestFinalsBySlot.has(key)) {
+      latestFinalsBySlot.set(key, artifact);
+    }
+  }
+  const deliveryUrls = Array.from(latestFinalsBySlot.values()).map(
+    (artifact) => `${origin}/api/files/final/${order.uploadToken}?artifactId=${artifact.id}`
+  );
+  const readyImageUrl = deliveryUrls[0] ?? `${origin}/api/files/final/${order.uploadToken}`;
   const deliveryUrl =
     order.status === OrderStatus.DELIVERED
       ? readyImageUrl
       : undefined;
   const deliveryMessage = deliveryUrl
-    ? `Your portrait is ready. Save your final PNG here:\n${deliveryUrl}`
+    ? `Your portrait is ready. Save your final PNG${deliveryUrls.length > 1 ? "s" : ""} here:\n${deliveryUrls.join("\n")}`
     : undefined;
+  const uploadsBySlot = new Map(order.uploads.map((upload) => [upload.portraitSlotId, upload]));
 
   return (
     <main className="shell">
@@ -81,7 +95,7 @@ export default async function OrderDetailPage({
             </form>
             <form action={`/api/orders/${order.id}/rerender`} method="post">
               <button className="buttonSecondary" type="submit">
-                Re-render
+                Re-render latest upload
               </button>
             </form>
             <form action={`/api/orders/${order.id}/manual-attention`} method="post">
@@ -142,44 +156,65 @@ export default async function OrderDetailPage({
 
             <article className="card stack">
               <div className="eyebrow">Uploads</div>
-              {order.uploads.length === 0 ? (
+              {order.portraitSlots.length === 0 && order.uploads.length === 0 ? (
                 <span className="muted">Waiting for upload</span>
               ) : (
-                order.uploads.map((upload) => (
-                  <div key={upload.id} className="opsUploadCard">
-                    <a
-                      href={`/api/admin/uploads/${upload.id}/thumbnail`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="opsUploadThumbLink"
-                      aria-label={`Open uploaded photo for ${upload.petName}`}
-                    >
-                      <img
-                        alt={`Uploaded photo for ${upload.petName}`}
-                        src={`/api/admin/uploads/${upload.id}/thumbnail`}
-                        className="opsUploadThumb"
-                      />
-                    </a>
-                    <div className="stack">
-                      <strong>Pet name: {upload.petName}</strong>
-                      <a
-                        href={getPublicFileUrl(upload.storageKey)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="opsUploadFileLink"
-                      >
-                        {upload.originalName}
-                      </a>
-                      <span className="muted">
-                        Font: {getPosterFontOption(upload.fontStyle).label}
-                      </span>
-                      <span className="muted">
-                        Background: {getPosterBackgroundOption(upload.backgroundStyle).label}
-                      </span>
-                      <span className="mono">Blur {upload.blurScore ?? "n/a"}</span>
+                order.portraitSlots.map((slot) => {
+                  const upload = uploadsBySlot.get(slot.id);
+
+                  return (
+                    <div key={slot.id} className="opsUploadCard">
+                      {upload ? (
+                        <>
+                          <a
+                            href={`/api/admin/uploads/${upload.id}/thumbnail`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="opsUploadThumbLink"
+                            aria-label={`Open uploaded photo for ${upload.petName}`}
+                          >
+                            <img
+                              alt={`Uploaded photo for ${upload.petName}`}
+                              src={`/api/admin/uploads/${upload.id}/thumbnail`}
+                              className="opsUploadThumb"
+                            />
+                          </a>
+                          <div className="stack">
+                            <strong>
+                              Portrait {slot.slotNumber}: {upload.petName}
+                            </strong>
+                            <a
+                              href={getPublicFileUrl(upload.storageKey)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="opsUploadFileLink"
+                            >
+                              {upload.originalName}
+                            </a>
+                            <span className="muted">
+                              Font: {getPosterFontOption(upload.fontStyle).label}
+                            </span>
+                            <span className="muted">
+                              Background: {getPosterBackgroundOption(upload.backgroundStyle).label}
+                            </span>
+                            <span className="mono">Blur {upload.blurScore ?? "n/a"}</span>
+                            <form action={`/api/orders/${order.id}/rerender`} method="post">
+                              <input type="hidden" name="portraitSlotId" value={slot.id} />
+                              <button className="buttonSecondary" type="submit">
+                                Re-render portrait {slot.slotNumber}
+                              </button>
+                            </form>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="stack">
+                          <strong>Portrait {slot.slotNumber}</strong>
+                          <span className="muted">Waiting for upload</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </article>
           </div>
@@ -195,6 +230,12 @@ export default async function OrderDetailPage({
                 className="card opsLinkCard"
               >
                 {artifact.kind} v{artifact.version}
+                {artifact.portraitSlotId
+                  ? ` - Portrait ${
+                      order.portraitSlots.find((slot) => slot.id === artifact.portraitSlotId)
+                        ?.slotNumber ?? "?"
+                    }`
+                  : ""}
               </a>
             ))}
           </section>

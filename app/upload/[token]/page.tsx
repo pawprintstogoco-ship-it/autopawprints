@@ -35,14 +35,24 @@ export default async function UploadPage({
     notFound();
   }
 
-  const hasUploadedPhoto = order.uploads.length > 0;
+  const filledSlotIds = new Set(
+    order.uploads
+      .map((upload) => upload.portraitSlotId)
+      .filter((slotId): slotId is string => Boolean(slotId))
+  );
+  const totalSlots = Math.max(1, order.portraitSlots.length);
+  const nextOpenSlot = order.portraitSlots.find((slot) => !filledSlotIds.has(slot.id)) ?? null;
+  const receivedCount = Math.min(order.uploads.length, totalSlots);
+  const hasCompletedAllUploads = !nextOpenSlot;
   const finalArtifact = order.finalArtifacts[0] ?? null;
   const isDelivered = order.status === OrderStatus.DELIVERED && Boolean(finalArtifact);
-  const finalImageUrl = isDelivered ? `/api/files/final/${token}` : null;
+  const finalImageUrl = isDelivered ? `/api/files/final/${token}?artifactId=${finalArtifact.id}` : null;
   const accentCopy = isDelivered
     ? "Your portrait is finished and ready for delivery."
-    : hasUploadedPhoto
+    : hasCompletedAllUploads
     ? ""
+    : totalSlots > 1
+    ? `${receivedCount} of ${totalSlots} photos received. Upload the next pet photo here.`
     : "A clear photo with good lighting helps the artist draw accurate details.";
 
   return (
@@ -81,11 +91,16 @@ export default async function UploadPage({
             <span className="uploadQuickTip">Clear face</span>
             <span className="uploadQuickTip">Good light</span>
             <span className="uploadQuickTip">Exact pet name</span>
+            {totalSlots > 1 ? (
+              <span className="uploadQuickTip">
+                {receivedCount}/{totalSlots} received
+              </span>
+            ) : null}
           </div>
         </div>
 
         <div className="uploadFlow">
-          <div className={`uploadWorkGrid${hasUploadedPhoto || isDelivered ? " uploadWorkGridSuccess" : ""}`}>
+          <div className={`uploadWorkGrid${hasCompletedAllUploads || isDelivered ? " uploadWorkGridSuccess" : ""}`}>
             <section className="uploadFormCard">
               {isDelivered ? (
                 <div className="uploadSuccessBanner" role="status">
@@ -95,27 +110,51 @@ export default async function UploadPage({
 
               <div className="uploadSectionHeader">
                 <div>
-                  {hasUploadedPhoto || isDelivered ? null : <div className="eyebrow">Upload details</div>}
-                  <h2>{hasUploadedPhoto && !isDelivered ? "Upload Successful!" : "Upload portrait reference"}</h2>
+                  {hasCompletedAllUploads || isDelivered ? null : <div className="eyebrow">Upload details</div>}
+                  <h2>
+                    {hasCompletedAllUploads && !isDelivered
+                      ? "Uploads Successful!"
+                      : nextOpenSlot && totalSlots > 1
+                      ? `Upload portrait ${nextOpenSlot.slotNumber} of ${totalSlots}`
+                      : "Upload portrait reference"}
+                  </h2>
                 </div>
                 {accentCopy ? <p>{accentCopy}</p> : null}
               </div>
 
               {isDelivered && finalImageUrl ? (
-                <a className="button" href={finalImageUrl} download>
-                  Save final portrait
-                </a>
+                <div className="stack">
+                  {order.finalArtifacts.map((artifact, index) => (
+                    <a
+                      key={artifact.id}
+                      className="button"
+                      href={`/api/files/final/${token}?artifactId=${artifact.id}`}
+                      download
+                    >
+                      {order.finalArtifacts.length > 1
+                        ? `Save final portrait ${index + 1}`
+                        : "Save final portrait"}
+                    </a>
+                  ))}
+                </div>
               ) : isDelivered ? (
                 <div className="uploadLockedMessage">
                   Your portrait is ready. If your save button does not appear, please refresh
                   this page.
                 </div>
-              ) : hasUploadedPhoto ? (
+              ) : hasCompletedAllUploads ? (
                 <div className="uploadLockedMessage">
                   We've received your order. Sit back and relax.
                 </div>
+              ) : nextOpenSlot ? (
+                <UploadForm
+                  token={token}
+                  portraitSlotId={nextOpenSlot.id}
+                  slotNumber={nextOpenSlot.slotNumber}
+                  totalSlots={totalSlots}
+                />
               ) : (
-                <UploadForm token={token} />
+                <div className="uploadLockedMessage">Upload details are temporarily unavailable.</div>
               )}
             </section>
 
@@ -132,14 +171,14 @@ export default async function UploadPage({
 
                 <div className="uploadFloatingMeta">
                   <span>
-                    {isDelivered ? "Ready to save" : hasUploadedPhoto ? "Under review" : "Upload pending"}
+                    {isDelivered ? "Ready to save" : hasCompletedAllUploads ? "Under review" : "Upload pending"}
                   </span>
                 </div>
               </div>
 
               <div className="uploadPortraitBody">
                 <div className="eyebrow">
-                  {isDelivered ? "Delivery ready" : hasUploadedPhoto ? "Artist review" : "Upload status"}
+                  {isDelivered ? "Delivery ready" : hasCompletedAllUploads ? "Artist review" : "Upload status"}
                 </div>
 
                 {isDelivered ? (
@@ -147,7 +186,7 @@ export default async function UploadPage({
                     <h3>Your portrait is ready.</h3>
                     <p>Your final portrait has been completed and is ready to open.</p>
                   </>
-                ) : hasUploadedPhoto ? (
+                ) : hasCompletedAllUploads ? (
                   <>
                     <h3>Under review</h3>
                     <p>
@@ -160,8 +199,8 @@ export default async function UploadPage({
                   <>
                     <h3>What makes a strong upload</h3>
                     <p>
-                      Use one clear pet photo with good light, visible facial detail, and
-                      minimal blur.
+                      Use one clear pet photo for each portrait with good light, visible facial
+                      detail, and minimal blur.
                     </p>
                   </>
                 )}

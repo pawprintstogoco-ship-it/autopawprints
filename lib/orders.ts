@@ -51,6 +51,136 @@ type EtsyWebhookPayload = {
   resource_url?: string | null;
 };
 
+type QuantityLike = {
+  quantity?: number | null;
+};
+
+export function calculateRequiredPortraitSlots(items: QuantityLike[]) {
+  const total = items.reduce((sum, item) => {
+    const quantity = Number(item.quantity ?? 1);
+    return sum + (Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1);
+  }, 0);
+
+  return Math.max(1, total);
+}
+
+function getLatestBySlot<T extends { portraitSlotId: string | null; createdAt: Date }>(items: T[]) {
+  const latestBySlot = new Map<string, T>();
+
+  for (const item of items) {
+    if (!item.portraitSlotId) {
+      continue;
+    }
+
+    const existing = latestBySlot.get(item.portraitSlotId);
+    if (!existing || item.createdAt > existing.createdAt) {
+      latestBySlot.set(item.portraitSlotId, item);
+    }
+  }
+
+  return Array.from(latestBySlot.values());
+}
+
+async function ensureOrderPortraitSlots(orderId: string, client = prisma) {
+  const [items, existingSlots] = await Promise.all([
+    client.orderItem.findMany({
+      where: {
+        orderId
+      },
+      orderBy: {
+        createdAt: "asc"
+      },
+      select: {
+        id: true,
+        quantity: true
+      }
+    }),
+    client.orderPortraitSlot.findMany({
+      where: {
+        orderId
+      },
+      orderBy: {
+        slotNumber: "asc"
+      },
+      select: {
+        id: true,
+        slotNumber: true
+      }
+    })
+  ]);
+
+  const requiredSlots = calculateRequiredPortraitSlots(items);
+  const existingSlotNumbers = new Set(existingSlots.map((slot) => slot.slotNumber));
+  const slotAssignments = items.flatMap((item) =>
+    Array.from({ length: Math.max(1, Math.floor(item.quantity)) }, () => item.id)
+  );
+  const slotsToCreate = Array.from({ length: requiredSlots }, (_, index) => index + 1)
+    .filter((slotNumber) => !existingSlotNumbers.has(slotNumber))
+    .map((slotNumber) => ({
+      orderId,
+      orderItemId: slotAssignments[slotNumber - 1] ?? null,
+      slotNumber
+    }));
+
+  if (slotsToCreate.length > 0) {
+    await client.orderPortraitSlot.createMany({
+      data: slotsToCreate,
+      skipDuplicates: true
+    });
+  }
+
+  const slots = await client.orderPortraitSlot.findMany({
+    where: {
+      orderId
+    },
+    orderBy: {
+      slotNumber: "asc"
+    },
+    select: {
+      id: true,
+      slotNumber: true
+    }
+  });
+
+  const firstSlot = slots[0];
+  if (firstSlot) {
+    await client.$executeRaw`
+      WITH first_upload AS (
+        SELECT "id"
+        FROM "CustomerUpload"
+        WHERE "orderId" = ${orderId}
+          AND "portraitSlotId" IS NULL
+        ORDER BY "createdAt" ASC
+        LIMIT 1
+      )
+      UPDATE "CustomerUpload" cu
+      SET "portraitSlotId" = ${firstSlot.id}
+      FROM first_upload
+      WHERE cu."id" = first_upload."id"
+    `;
+    await client.$executeRaw`
+      UPDATE "RenderJob" rj
+      SET "portraitSlotId" = cu."portraitSlotId"
+      FROM "CustomerUpload" cu
+      WHERE rj."customerUploadId" = cu."id"
+        AND rj."orderId" = ${orderId}
+        AND rj."portraitSlotId" IS NULL
+        AND cu."portraitSlotId" IS NOT NULL
+    `;
+    await client.$executeRaw`
+      UPDATE "Artifact" a
+      SET "portraitSlotId" = rj."portraitSlotId"
+      FROM "RenderJob" rj
+      WHERE a."renderJobId" = rj."id"
+        AND a."orderId" = ${orderId}
+        AND a."portraitSlotId" IS NULL
+        AND rj."portraitSlotId" IS NOT NULL
+    `;
+  }
+
+  return slots;
+}
+
 export async function ingestOrderPaidWebhook(payload: EtsyWebhookPayload) {
   const env = requireEnv();
   const pilotListingMatched = payload.listing_id === env.ETSY_PILOT_LISTING_ID;
@@ -134,6 +264,8 @@ export async function ingestOrderPaidWebhook(payload: EtsyWebhookPayload) {
       }
     })
   ]);
+
+  await ensureOrderPortraitSlots(order.id);
 
   if (pilotListingEligible) {
     await scheduleMissingPhotoReminders(order.id, order.createdAt);
@@ -298,8 +430,12 @@ export async function getDashboardOrders(status?: OrderStatus) {
   );
 
   const latestUploadByOrder = new Map<string, string>();
+  const uploadCountByOrder = new Map<string, number>();
   for (const { upload } of uploadRows) {
     const orderId = String(upload.orderId ?? "");
+    if (orderId) {
+      uploadCountByOrder.set(orderId, (uploadCountByOrder.get(orderId) ?? 0) + 1);
+    }
     if (orderId && !latestUploadByOrder.has(orderId)) {
       latestUploadByOrder.set(orderId, String(upload.originalName ?? ""));
     }
@@ -307,7 +443,7 @@ export async function getDashboardOrders(status?: OrderStatus) {
 
   return orders.map((order) => ({
     ...order,
-    uploadCount: latestUploadByOrder.has(order.id) ? 1 : 0,
+    uploadCount: uploadCountByOrder.get(order.id) ?? 0,
     latestUploadName: latestUploadByOrder.get(order.id) ?? null
   }));
 }
@@ -505,7 +641,9 @@ export async function getOrderById(orderId: string) {
     return null;
   }
 
-  const [uploads, artifacts, messageEvents, auditLog] = await Promise.all([
+  await ensureOrderPortraitSlots(orderId);
+
+  const [uploads, artifacts, portraitSlots, messageEvents, auditLog] = await Promise.all([
     withQueryFallback(
       "getOrderById uploads",
       () =>
@@ -525,9 +663,20 @@ export async function getOrderById(orderId: string) {
           FROM "Artifact" a
           WHERE a."orderId" = ${orderId}
           ORDER BY a."createdAt" DESC
-          LIMIT 10
+          LIMIT 200
         `,
       [] as Array<{ artifact: Record<string, unknown> }>
+    ),
+    withQueryFallback(
+      "getOrderById portrait slots",
+      () =>
+        prisma.$queryRaw<Array<{ slot: Record<string, unknown> }>>`
+          SELECT row_to_json(s) AS "slot"
+          FROM "OrderPortraitSlot" s
+          WHERE s."orderId" = ${orderId}
+          ORDER BY s."slotNumber" ASC
+        `,
+      [] as Array<{ slot: Record<string, unknown> }>
     ),
     withQueryFallback(
       "getOrderById message events",
@@ -563,8 +712,13 @@ export async function getOrderById(orderId: string) {
     deliveryEmail: nullableString(rawOrder.deliveryEmail),
     status: String(rawOrder.status ?? OrderStatus.PAID) as OrderStatus,
     uploadToken: String(rawOrder.uploadToken ?? ""),
+    portraitSlots: portraitSlots.map(({ slot }) => ({
+      id: String(slot.id),
+      slotNumber: Number(slot.slotNumber ?? 1)
+    })),
     uploads: uploads.map(({ upload }) => ({
       id: String(upload.id),
+      portraitSlotId: nullableString(upload.portraitSlotId),
       petName: String(upload.petName ?? ""),
       fontStyle: posterFontStyleFromDb(upload.fontStyle),
       backgroundStyle: posterBackgroundStyleFromDb(upload.backgroundStyle),
@@ -578,6 +732,7 @@ export async function getOrderById(orderId: string) {
     })),
     artifacts: artifacts.map(({ artifact }) => ({
       id: String(artifact.id),
+      portraitSlotId: nullableString(artifact.portraitSlotId),
       kind: String(artifact.kind ?? ArtifactKind.PREVIEW) as ArtifactKind,
       version: Number(artifact.version ?? 1),
       storageKey: String(artifact.storageKey ?? ""),
@@ -618,7 +773,9 @@ export async function getOrderByUploadToken(token: string) {
 
   const orderId = String(rawOrder.id);
 
-  const [uploads, finalArtifacts] = await Promise.all([
+  await ensureOrderPortraitSlots(orderId);
+
+  const [uploads, portraitSlots, finalArtifacts] = await Promise.all([
     withQueryFallback(
       "getOrderByUploadToken uploads",
       () =>
@@ -627,9 +784,19 @@ export async function getOrderByUploadToken(token: string) {
           FROM "CustomerUpload" cu
           WHERE cu."orderId" = ${orderId}
           ORDER BY cu."createdAt" DESC
-          LIMIT 1
         `,
       [] as Array<{ upload: Record<string, unknown> }>
+    ),
+    withQueryFallback(
+      "getOrderByUploadToken portrait slots",
+      () =>
+        prisma.$queryRaw<Array<{ slot: Record<string, unknown> }>>`
+          SELECT row_to_json(s) AS "slot"
+          FROM "OrderPortraitSlot" s
+          WHERE s."orderId" = ${orderId}
+          ORDER BY s."slotNumber" ASC
+        `,
+      [] as Array<{ slot: Record<string, unknown> }>
     ),
     withQueryFallback(
       "getOrderByUploadToken artifacts",
@@ -639,7 +806,7 @@ export async function getOrderByUploadToken(token: string) {
           FROM "Artifact" a
           WHERE a."orderId" = ${orderId}
           ORDER BY a."version" DESC, a."createdAt" DESC
-          LIMIT 10
+          LIMIT 200
         `,
       [] as Array<{ artifact: Record<string, unknown> }>
     )
@@ -652,8 +819,13 @@ export async function getOrderByUploadToken(token: string) {
     deliveryEmail: nullableString(rawOrder.deliveryEmail),
     receiptId: String(rawOrder.receiptId ?? ""),
     status: String(rawOrder.status ?? OrderStatus.PAID) as OrderStatus,
+    portraitSlots: portraitSlots.map(({ slot }) => ({
+      id: String(slot.id),
+      slotNumber: Number(slot.slotNumber ?? 1)
+    })),
     uploads: uploads.map(({ upload }) => ({
       id: String(upload.id),
+      portraitSlotId: nullableString(upload.portraitSlotId),
       petName: String(upload.petName ?? ""),
       createdAt: toDate(upload.createdAt) ?? new Date(0)
     })),
@@ -665,14 +837,21 @@ export async function getOrderByUploadToken(token: string) {
         storageKey: String(artifact.storageKey ?? ""),
         createdAt: toDate(artifact.createdAt) ?? new Date(0)
       })),
-    finalArtifacts: finalArtifacts
-      .map(({ artifact }) => artifact)
-      .filter((artifact) => String(artifact.kind ?? "") === "FINAL_PNG")
-      .slice(0, 1)
-      .map((artifact) => ({
+    finalArtifacts: getLatestBySlot(
+      finalArtifacts
+        .map(({ artifact }) => artifact)
+        .filter((artifact) => String(artifact.kind ?? "") === "FINAL_PNG")
+        .map((artifact) => ({
+          id: String(artifact.id),
+          portraitSlotId: nullableString(artifact.portraitSlotId),
+          storageKey: String(artifact.storageKey ?? ""),
+          createdAt: toDate(artifact.createdAt) ?? new Date(0)
+        }))
+    ).map((artifact) => ({
         id: String(artifact.id),
+        portraitSlotId: nullableString(artifact.portraitSlotId),
         storageKey: String(artifact.storageKey ?? ""),
-        createdAt: toDate(artifact.createdAt) ?? new Date(0)
+        createdAt: artifact.createdAt
       }))
   };
 }
@@ -698,6 +877,7 @@ export async function getOrderByDownloadToken(token: string) {
 
 export async function storeCustomerUpload({
   orderId,
+  portraitSlotId,
   customerEmail,
   petName,
   notes,
@@ -709,6 +889,7 @@ export async function storeCustomerUpload({
   deferInlineProcessing = false
 }: {
   orderId: string;
+  portraitSlotId: string;
   customerEmail: string;
   petName: string;
   notes?: string;
@@ -727,6 +908,27 @@ export async function storeCustomerUpload({
 
   if (!orderRecord?.pilotListingEligible) {
     throw new Error("This order is not enabled for the pilot upload flow");
+  }
+
+  const portraitSlot = await prisma.orderPortraitSlot.findUnique({
+    where: {
+      id: portraitSlotId
+    },
+    include: {
+      uploads: {
+        select: {
+          id: true
+        }
+      }
+    }
+  });
+
+  if (!portraitSlot || portraitSlot.orderId !== orderId) {
+    throw new Error("Selected portrait slot does not belong to this order");
+  }
+
+  if (portraitSlot.uploads.length > 0) {
+    throw new Error("That portrait slot has already received a photo");
   }
 
   const imageInfo = await analyzeImage(fileBuffer);
@@ -756,14 +958,12 @@ export async function storeCustomerUpload({
   const storageKey = `orders/${orderId}/uploads/${Date.now()}-${sanitizeFileName(originalName)}`;
   await putBuffer(storageKey, fileBuffer, mimeType);
 
-  const orderStatus =
-    imageInfo.blurScore < 12 ? OrderStatus.NEEDS_MANUAL_ATTENTION : OrderStatus.PHOTO_RECEIVED;
-
   const uploadReceivedAt = new Date();
   const result = await prisma.$transaction(async (tx) => {
     const upload = await tx.customerUpload.create({
       data: {
         orderId,
+        portraitSlotId,
         petName,
         notes,
         fontStyle: posterFontStyleToDb(fontStyle),
@@ -776,6 +976,37 @@ export async function storeCustomerUpload({
         blurScore: imageInfo.blurScore
       }
     });
+
+    const [totalSlots, receivedSlots, blurryUploads] = await Promise.all([
+      tx.orderPortraitSlot.count({
+        where: {
+          orderId
+        }
+      }),
+      tx.customerUpload.count({
+        where: {
+          orderId,
+          portraitSlotId: {
+            not: null
+          }
+        }
+      }),
+      tx.customerUpload.count({
+        where: {
+          orderId,
+          blurScore: {
+            lt: 12
+          }
+        }
+      })
+    ]);
+
+    const orderStatus =
+      blurryUploads > 0
+        ? OrderStatus.NEEDS_MANUAL_ATTENTION
+        : receivedSlots >= Math.max(1, totalSlots)
+        ? OrderStatus.PHOTO_RECEIVED
+        : OrderStatus.AWAITING_PHOTO;
 
     const order = await tx.order.update({
       where: {
@@ -798,10 +1029,11 @@ export async function storeCustomerUpload({
     });
 
     const renderJob =
-      orderStatus === OrderStatus.PHOTO_RECEIVED
+      imageInfo.blurScore >= 12
         ? await tx.renderJob.create({
             data: {
               orderId,
+              portraitSlotId,
               customerUploadId: upload.id,
               status: RenderJobStatus.QUEUED
             }
@@ -892,18 +1124,28 @@ export async function processRenderJob(renderJobId: string) {
       throw new Error("Render job is missing its source upload");
     }
 
+    const blurryUploadCount = await prisma.customerUpload.count({
+      where: {
+        orderId: renderJob.orderId,
+        blurScore: {
+          lt: 12
+        }
+      }
+    });
+
     const [order, artifactCount] = await Promise.all([
       prisma.order.update({
         where: {
           id: renderJob.orderId
         },
         data: {
-          status: OrderStatus.RENDERING
+          status: blurryUploadCount > 0 ? OrderStatus.NEEDS_MANUAL_ATTENTION : OrderStatus.RENDERING
         }
       }),
       prisma.artifact.count({
         where: {
-          orderId: renderJob.orderId
+          orderId: renderJob.orderId,
+          portraitSlotId: renderJob.portraitSlotId
         }
       })
     ]);
@@ -924,6 +1166,7 @@ export async function processRenderJob(renderJobId: string) {
         data: [
           {
             orderId: order.id,
+            portraitSlotId: renderJob.portraitSlotId,
             renderJobId: renderJob.id,
             kind: ArtifactKind.PREVIEW,
             version,
@@ -932,6 +1175,7 @@ export async function processRenderJob(renderJobId: string) {
           },
           {
             orderId: order.id,
+            portraitSlotId: renderJob.portraitSlotId,
             renderJobId: renderJob.id,
             kind: ArtifactKind.FINAL_PNG,
             version,
@@ -955,25 +1199,100 @@ export async function processRenderJob(renderJobId: string) {
           id: order.id
         },
         data: {
-          status: OrderStatus.AWAITING_APPROVAL,
           auditLog: {
             create: {
               action: "render.completed",
-              metadata: output
+              metadata: {
+                ...output,
+                portraitSlotId: renderJob.portraitSlotId
+              }
             }
           }
         }
       })
     ]);
 
-    await sendOpsApprovalEmailIfNeeded({
-      orderId: order.id,
-      receiptId: order.receiptId,
-      buyerName: order.buyerName,
-      buyerEmail: order.buyerEmail,
-      deliveryEmail: order.deliveryEmail,
-      finalPngKey: output.finalPngKey
+    const [totalSlots, uploadedSlots, blurryUploads, finalSlotGroups] = await Promise.all([
+      prisma.orderPortraitSlot.count({
+        where: {
+          orderId: order.id
+        }
+      }),
+      prisma.customerUpload.count({
+        where: {
+          orderId: order.id,
+          portraitSlotId: {
+            not: null
+          }
+        }
+      }),
+      prisma.customerUpload.count({
+        where: {
+          orderId: order.id,
+          blurScore: {
+            lt: 12
+          }
+        }
+      }),
+      prisma.artifact.groupBy({
+        by: ["portraitSlotId"],
+        where: {
+          orderId: order.id,
+          kind: ArtifactKind.FINAL_PNG,
+          portraitSlotId: {
+            not: null
+          }
+        }
+      })
+    ]);
+
+    await prisma.order.update({
+      where: {
+        id: order.id
+      },
+      data: {
+        status:
+          blurryUploads > 0
+            ? OrderStatus.NEEDS_MANUAL_ATTENTION
+            : finalSlotGroups.length >= Math.max(1, totalSlots)
+            ? OrderStatus.AWAITING_APPROVAL
+            : uploadedSlots < Math.max(1, totalSlots)
+            ? OrderStatus.AWAITING_PHOTO
+            : OrderStatus.RENDERING
+      }
     });
+
+    if (finalSlotGroups.length >= Math.max(1, totalSlots)) {
+      const finalArtifacts = await prisma.artifact.findMany({
+        where: {
+          orderId: order.id,
+          kind: ArtifactKind.FINAL_PNG
+        },
+        orderBy: [
+          {
+            version: "desc"
+          },
+          {
+            createdAt: "desc"
+          }
+        ],
+        select: {
+          id: true,
+          portraitSlotId: true,
+          storageKey: true,
+          createdAt: true
+        }
+      });
+
+      await sendOpsApprovalEmailIfNeeded({
+        orderId: order.id,
+        receiptId: order.receiptId,
+        buyerName: order.buyerName,
+        buyerEmail: order.buyerEmail,
+        deliveryEmail: order.deliveryEmail,
+        finalPngKeys: getLatestBySlot(finalArtifacts).map((artifact) => artifact.storageKey)
+      });
+    }
   } catch (error) {
     const failureReason = formatJobFailureReason(error);
     console.error(`[render] job ${renderJob.id} failed`, error);
@@ -1034,22 +1353,43 @@ export async function approveOrder(orderId: string) {
     throw new Error("Order not found");
   }
 
-  const finalArtifact = await prisma.artifact.findFirst({
-    where: {
-      orderId: order.id,
-      kind: ArtifactKind.FINAL_PNG
-    },
-    orderBy: {
-      createdAt: "desc"
-    },
-    select: {
-      id: true,
-      storageKey: true
-    }
-  });
+  const [finalArtifact, totalSlots, finalSlotGroups] = await Promise.all([
+    prisma.artifact.findFirst({
+      where: {
+        orderId: order.id,
+        kind: ArtifactKind.FINAL_PNG
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      select: {
+        id: true,
+        storageKey: true
+      }
+    }),
+    prisma.orderPortraitSlot.count({
+      where: {
+        orderId: order.id
+      }
+    }),
+    prisma.artifact.groupBy({
+      by: ["portraitSlotId"],
+      where: {
+        orderId: order.id,
+        kind: ArtifactKind.FINAL_PNG,
+        portraitSlotId: {
+          not: null
+        }
+      }
+    })
+  ]);
 
   if (!finalArtifact) {
     throw new Error("Cannot approve before a final portrait is generated");
+  }
+
+  if (finalSlotGroups.length < Math.max(1, totalSlots)) {
+    throw new Error("Cannot approve before every purchased portrait has a final image");
   }
 
   const recipients = getCustomerEmailRecipients(order.buyerEmail, order.deliveryEmail);
@@ -1198,13 +1538,15 @@ export async function markNeedsManualAttention(orderId: string, reason: string) 
 export async function rerenderOrder(
   orderId: string,
   options?: {
+    portraitSlotId?: string;
     deferInlineProcessing?: boolean;
     skipProcessing?: boolean;
   }
 ) {
   const latestUpload = await prisma.customerUpload.findFirst({
     where: {
-      orderId
+      orderId,
+      ...(options?.portraitSlotId ? { portraitSlotId: options.portraitSlotId } : {})
     },
     orderBy: {
       createdAt: "desc"
@@ -1212,16 +1554,30 @@ export async function rerenderOrder(
   });
 
   if (!latestUpload) {
-    throw new Error("Order has no uploaded photo");
+    throw new Error(
+      options?.portraitSlotId
+        ? "Selected portrait has no uploaded photo"
+        : "Order has no uploaded photo"
+    );
   }
 
   const attempt = (await prisma.renderJob.count({ where: { orderId } })) + 1;
   const renderJob = await prisma.renderJob.create({
     data: {
       orderId,
+      portraitSlotId: latestUpload.portraitSlotId,
       customerUploadId: latestUpload.id,
       status: RenderJobStatus.QUEUED,
       attempt
+    }
+  });
+
+  const blurryUploads = await prisma.customerUpload.count({
+    where: {
+      orderId,
+      blurScore: {
+        lt: 12
+      }
     }
   });
 
@@ -1230,7 +1586,7 @@ export async function rerenderOrder(
       id: orderId
     },
     data: {
-      status: OrderStatus.PHOTO_RECEIVED
+      status: blurryUploads > 0 ? OrderStatus.NEEDS_MANUAL_ATTENTION : OrderStatus.PHOTO_RECEIVED
     }
   });
 
@@ -1428,14 +1784,14 @@ async function sendOpsApprovalEmailIfNeeded({
   buyerName,
   buyerEmail,
   deliveryEmail,
-  finalPngKey
+  finalPngKeys
 }: {
   orderId: string;
   receiptId: string;
   buyerName: string;
   buyerEmail: string | null;
   deliveryEmail: string | null;
-  finalPngKey: string;
+  finalPngKeys: string[];
 }) {
   const existing = await prisma.messageEvent.findFirst({
     where: {
@@ -1459,20 +1815,21 @@ async function sendOpsApprovalEmailIfNeeded({
   });
 
   try {
-    const portrait = await getBuffer(finalPngKey);
+    const portraits = await Promise.all(finalPngKeys.map((finalPngKey) => getBuffer(finalPngKey)));
     const result = await sendEmail({
       to: OPS_EMAIL,
       subject: email.subject,
       html: email.html,
       text: email.text,
       idempotencyKey: `ops-approval-${orderId}`,
-      attachments: [
-        {
-          filename: `pawprints-${receiptId}.png`,
-          content: portrait,
-          contentType: "image/png"
-        }
-      ]
+      attachments: portraits.map((portrait, index) => ({
+        filename:
+          portraits.length > 1
+            ? `pawprints-${receiptId}-portrait-${index + 1}.png`
+            : `pawprints-${receiptId}.png`,
+        content: portrait,
+        contentType: "image/png"
+      }))
     });
 
     await prisma.order.update({
@@ -1498,7 +1855,7 @@ async function sendOpsApprovalEmailIfNeeded({
               result.status === "sent" ? "approval.email_sent" : "approval.email_skipped",
             metadata: {
               opsEmail: OPS_EMAIL,
-              finalPngKey,
+              finalPngKeys,
               emailStatus: result.status
             }
           }
@@ -1525,7 +1882,7 @@ async function sendOpsApprovalEmailIfNeeded({
             action: "approval.email_failed",
             metadata: {
               opsEmail: OPS_EMAIL,
-              finalPngKey,
+              finalPngKeys,
               failureReason
             }
           }

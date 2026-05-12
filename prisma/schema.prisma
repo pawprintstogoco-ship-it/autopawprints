@@ -87,6 +87,7 @@ model Order {
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
   items                 OrderItem[]
+  portraitSlots         OrderPortraitSlot[]
   uploads               CustomerUpload[]
   renderJobs            RenderJob[]
   artifacts             Artifact[]
@@ -106,11 +107,30 @@ model OrderItem {
   currencyCode  String?
   createdAt     DateTime @default(now())
   order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  portraitSlots OrderPortraitSlot[]
+}
+
+model OrderPortraitSlot {
+  id           String   @id @default(cuid())
+  orderId      String
+  orderItemId  String?
+  slotNumber   Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem    OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  uploads      CustomerUpload[]
+  renderJobs   RenderJob[]
+  artifacts    Artifact[]
+
+  @@unique([orderId, slotNumber])
+  @@index([orderItemId])
 }
 
 model CustomerUpload {
   id           String   @id @default(cuid())
   orderId      String
+  portraitSlotId String?
   petName      String
   notes        String?
   fontStyle    PosterFontStyle       @default(SITE)
@@ -123,11 +143,16 @@ model CustomerUpload {
   blurScore    Float?
   createdAt    DateTime @default(now())
   order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  portraitSlot OrderPortraitSlot? @relation(fields: [portraitSlotId], references: [id], onDelete: SetNull)
+
+  @@unique([portraitSlotId])
+  @@index([orderId])
 }
 
 model RenderJob {
   id             String          @id @default(cuid())
   orderId        String
+  portraitSlotId String?
   customerUploadId String
   status         RenderJobStatus @default(QUEUED)
   attempt        Int             @default(1)
@@ -136,11 +161,15 @@ model RenderJob {
   completedAt    DateTime?
   createdAt      DateTime        @default(now())
   order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  portraitSlot   OrderPortraitSlot? @relation(fields: [portraitSlotId], references: [id], onDelete: SetNull)
+
+  @@index([portraitSlotId])
 }
 
 model Artifact {
   id          String       @id @default(cuid())
   orderId     String
+  portraitSlotId String?
   renderJobId String?
   kind        ArtifactKind
   version     Int          @default(1)
@@ -148,6 +177,9 @@ model Artifact {
   mimeType    String
   createdAt   DateTime     @default(now())
   order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  portraitSlot OrderPortraitSlot? @relation(fields: [portraitSlotId], references: [id], onDelete: SetNull)
+
+  @@index([portraitSlotId])
 }
 
 model MessageEvent {

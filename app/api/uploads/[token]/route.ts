@@ -29,9 +29,16 @@ export async function POST(
     return NextResponse.json({ error: "Upload link is invalid or expired" }, { status: 404 });
   }
 
-  if (order.uploads.length > 0) {
+  const filledSlotIds = new Set(
+    order.uploads
+      .map((upload) => upload.portraitSlotId)
+      .filter((slotId): slotId is string => Boolean(slotId))
+  );
+  const openSlots = order.portraitSlots.filter((slot) => !filledSlotIds.has(slot.id));
+
+  if (openSlots.length === 0) {
     return NextResponse.json(
-      { error: "Photo already received for this order." },
+      { error: "All photos have already been received for this order." },
       { status: 409 }
     );
   }
@@ -40,7 +47,18 @@ export async function POST(
   const customerEmail = String(formData.get("customerEmail") ?? "");
   const petName = String(formData.get("petName") ?? "");
   const notes = String(formData.get("notes") ?? "");
+  const requestedSlotId = String(formData.get("portraitSlotId") ?? "");
+  const portraitSlot = requestedSlotId
+    ? openSlots.find((slot) => slot.id === requestedSlotId)
+    : openSlots[0];
   const photo = formData.get("photo");
+
+  if (!portraitSlot) {
+    return NextResponse.json(
+      { error: "That portrait slot has already received a photo." },
+      { status: 409 }
+    );
+  }
 
   if (!(photo instanceof File)) {
     return NextResponse.json({ error: "Photo upload is required" }, { status: 400 });
@@ -66,6 +84,7 @@ export async function POST(
 
     await storeCustomerUpload({
       orderId: order.id,
+      portraitSlotId: portraitSlot.id,
       customerEmail,
       petName,
       notes,

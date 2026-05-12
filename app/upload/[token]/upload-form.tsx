@@ -27,7 +27,17 @@ const MAX_DIRECT_UPLOAD_BYTES = 4 * 1024 * 1024;
 const TARGET_OPTIMIZED_UPLOAD_BYTES = 3.25 * 1024 * 1024;
 const MAX_OPTIMIZED_IMAGE_EDGE = 1800;
 
-export function UploadForm({ token }: { token: string }) {
+export function UploadForm({
+  token,
+  portraitSlotId,
+  slotNumber,
+  totalSlots
+}: {
+  token: string;
+  portraitSlotId: string;
+  slotNumber: number;
+  totalSlots: number;
+}) {
   const router = useRouter();
   const photoInputId = useId();
   const [phase, setPhase] = useState<UploadPhase>("idle");
@@ -212,8 +222,10 @@ export function UploadForm({ token }: { token: string }) {
       <fieldset className="uploadFieldset" disabled={isBusy}>
         <div className="uploadFormBody">
           <AnimatedBlock delay={0.02} className="uploadFormNote">
-            Upload one photo to start your portrait review.
+            Upload photo {slotNumber} of {totalSlots} for your portrait review.
           </AnimatedBlock>
+
+          <input type="hidden" name="portraitSlotId" value={portraitSlotId} />
 
           <AnimatedBlock as="label" delay={0.08} className="uploadField">
             <span className="uploadFieldLabel">Pet name</span>
