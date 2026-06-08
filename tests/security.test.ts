@@ -27,6 +27,8 @@ beforeEach(() => {
   process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/pawprints";
   process.env.REDIS_URL = "redis://localhost:6379";
   process.env.ADMIN_EMAIL = "owner@pawprintsca.com";
+  delete process.env.ADMIN_PASSWORD;
+  delete process.env.ADMIN_PASSWORD_HASH;
   process.env.GOOGLE_CLIENT_ID = "google-client";
   process.env.GOOGLE_CLIENT_SECRET = "google-secret";
   process.env.GOOGLE_OAUTH_REDIRECT_URI =
@@ -130,6 +132,84 @@ describe("admin session security", () => {
     await expect(requireAdminSession()).rejects.toThrow("redirect:/login");
     expect(adminSession.delete).toHaveBeenCalledTimes(1);
     expect(cookieStore.get("pawprints_admin_session")).toEqual({ value: "opaque-token" });
+  });
+
+  it("creates server-side sessions from the local admin fallback", async () => {
+    const cookieStore = createCookieStore();
+    const adminSession = {
+      deleteMany: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue(undefined)
+    };
+
+    process.env.ADMIN_PASSWORD = "local-secret";
+
+    vi.doMock("next/headers", () => ({
+      cookies: vi.fn(async () => cookieStore)
+    }));
+    vi.doMock("@/lib/prisma", () => ({
+      prisma: {
+        adminSession
+      }
+    }));
+
+    const { POST } = await import("../app/api/admin/login/route");
+    const response = await POST(
+      new Request("http://localhost:3010/api/admin/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          email: "owner@pawprintsca.com",
+          password: "local-secret"
+        })
+      })
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("http://localhost:3010/orders");
+    expect(adminSession.create).toHaveBeenCalledTimes(1);
+    expect(cookieStore.get("pawprints_admin_session")?.value).toBeTruthy();
+  });
+
+  it("rejects invalid local admin fallback credentials", async () => {
+    const cookieStore = createCookieStore();
+    const adminSession = {
+      deleteMany: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue(undefined)
+    };
+
+    process.env.ADMIN_PASSWORD = "local-secret";
+
+    vi.doMock("next/headers", () => ({
+      cookies: vi.fn(async () => cookieStore)
+    }));
+    vi.doMock("@/lib/prisma", () => ({
+      prisma: {
+        adminSession
+      }
+    }));
+
+    const { POST } = await import("../app/api/admin/login/route");
+    const response = await POST(
+      new Request("http://localhost:3010/api/admin/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          email: "owner@pawprintsca.com",
+          password: "wrong-secret"
+        })
+      })
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3010/login?error=local_credentials"
+    );
+    expect(adminSession.create).not.toHaveBeenCalled();
+    expect(cookieStore.get("pawprints_admin_session")).toBeUndefined();
   });
 
   it("rejects Google OAuth callbacks for the wrong email address", async () => {

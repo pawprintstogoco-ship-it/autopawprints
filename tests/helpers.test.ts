@@ -8,6 +8,8 @@ beforeEach(() => {
   process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/pawprints";
   process.env.REDIS_URL = "redis://localhost:6379";
   process.env.ADMIN_EMAIL = "owner@pawprintsca.com";
+  delete process.env.ADMIN_PASSWORD;
+  delete process.env.ADMIN_PASSWORD_HASH;
   process.env.OPENAI_API_KEY = "test-key";
   process.env.STORAGE_ROOT = "./storage";
   process.env.SMTP_HOST = "smtp.example.com";
@@ -32,6 +34,61 @@ beforeEach(() => {
 });
 
 describe("etsy helpers", () => {
+  it("enqueues initial Etsy upload-message hooks without Telegram delivery", async () => {
+    const transactions: unknown[] = [];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ ok: true, runId: "run_123" })
+    });
+
+    process.env.OPENCLAW_HOOK_URL = "http://127.0.0.1:18789/hooks/agent";
+    process.env.OPENCLAW_HOOK_TOKEN = "hook-token";
+    process.env.OPENCLAW_CALLBACK_SECRET = "callback-secret";
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.doMock("@/lib/prisma", () => ({
+      prisma: {
+        messageEvent: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn((input) => input)
+        },
+        auditLog: {
+          create: vi.fn((input) => input)
+        },
+        $transaction: vi.fn((items) => {
+          transactions.push(items);
+          return Promise.resolve(items);
+        })
+      }
+    }));
+
+    const { enqueueInitialEtsyUploadMessageJob } = await import("../lib/openclaw");
+
+    await expect(
+      enqueueInitialEtsyUploadMessageJob({
+        id: "order_123",
+        receiptId: "456",
+        buyerName: "Buyer",
+        pilotListingEligible: true
+      })
+    ).resolves.toEqual({ enqueued: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("http://127.0.0.1:18789/hooks/agent");
+    expect(options?.headers?.Authorization).toBe("Bearer hook-token");
+
+    const payload = JSON.parse(String(options?.body));
+    expect(payload).toMatchObject({
+      agentId: "main",
+      deliver: false,
+      sessionKey: "hook:etsy-initial-message:456",
+      wakeMode: "now"
+    });
+    expect(payload.message).toContain("Receipt ID: 456");
+    expect(transactions).toHaveLength(1);
+  });
+
   it("replaces upload URL in sale message", async () => {
     const { buildDigitalSaleMessage } = await import("../lib/etsy");
     expect(buildDigitalSaleMessage("http://localhost:3010/upload/token")).toContain(

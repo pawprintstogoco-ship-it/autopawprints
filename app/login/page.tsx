@@ -1,3 +1,4 @@
+import { isLocalAdminLoginConfigured } from "@/lib/auth";
 import { requireEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export default async function LoginPage({
   const query = (await searchParams) ?? {};
   const error = query.error ?? "";
   requireEnv();
+  const localLoginConfigured = isLocalAdminLoginConfigured();
 
   return (
     <main className="shell">
@@ -29,6 +31,27 @@ export default async function LoginPage({
           <a className="button" href="/api/admin/oauth/google">
             Sign in with Google
           </a>
+
+          {localLoginConfigured ? (
+            <form className="stack" action="/api/admin/login" method="post">
+              <label className="field">
+                <span>Email</span>
+                <input name="email" type="email" autoComplete="email" required />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
+              </label>
+              <button className="buttonSecondary" type="submit">
+                Sign in with password
+              </button>
+            </form>
+          ) : null}
         </div>
       </section>
     </main>
@@ -49,8 +72,10 @@ function getLoginErrorMessage(error: string) {
       return "That Google account is not allowed to access the admin area.";
     case "session":
       return "We could not create your admin session. Please try again.";
-    case "oauth_only":
-      return "Manual password login has been disabled. Please use Google sign-in.";
+    case "local_config":
+      return "Password login is not configured. Please use Google sign-in.";
+    case "local_credentials":
+      return "Those admin credentials did not work.";
     default:
       return "Sign-in failed. Please try again.";
   }

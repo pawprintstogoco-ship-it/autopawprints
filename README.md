@@ -25,6 +25,7 @@ DATABASE_URL=...
 REDIS_URL=...
 APP_URL=http://localhost:3010
 ADMIN_EMAIL=...
+ADMIN_PASSWORD_HASH=scrypt:<salt-hex>:<digest-hex>
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GOOGLE_OAUTH_REDIRECT_URI=https://your-domain.com/api/admin/oauth/google/callback
@@ -87,4 +88,10 @@ npm run seed:demo
 - The pilot is intentionally limited to `ETSY_PILOT_LISTING_ID`; non-pilot receipts are captured and flagged for manual handling.
 - Queue-backed render and delivery jobs are the recommended long-term production path, but only after a worker is running against the same Redis and database. Without that worker, hosted uploads must keep inline processing enabled.
 - Hosted Vercel builds intentionally do not run `prisma db push`. Production schema changes should be applied through the `Prisma Migrate` GitHub Actions workflow, which runs `prisma migrate deploy` against the configured `DATABASE_URL` secret.
-- Admin auth is Google-only. Restrict it to the exact Google account in `ADMIN_EMAIL`; for your setup, point that at the shared `pawprintstogoco` Google account and register the callback URL exactly as `GOOGLE_OAUTH_REDIRECT_URI`.
+- Admin auth uses Google OAuth plus an optional local password fallback. Restrict Google to the exact account in `ADMIN_EMAIL`; for your setup, point that at the shared `pawprintstogoco` Google account and register the callback URL exactly as `GOOGLE_OAUTH_REDIRECT_URI`. Set `ADMIN_PASSWORD_HASH` to enable the fallback without storing a plaintext password. Generate a scrypt hash with:
+
+```bash
+node -e 'const crypto=require("node:crypto"); const password=process.argv[1]; const salt=crypto.randomBytes(16); const key=crypto.scryptSync(password,salt,32); console.log(`scrypt:${salt.toString("hex")}:${key.toString("hex")}`)' 'replace-with-password'
+```
+
+`ADMIN_PASSWORD` is also accepted for local-only development, but prefer `ADMIN_PASSWORD_HASH` for hosted environments.
