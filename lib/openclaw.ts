@@ -198,7 +198,7 @@ function buildInitialEtsyUploadMessagePrompt({
     `Pawprints order ID: ${order.id}`,
     `Pawprints order URL: ${appUrl}/orders/${order.id}`,
     "Standing authority: send only the exact standard PawprintsCA upload message for this matching receipt when every SOP safety check passes.",
-    "Use PawprintsCA Google OAuth account pawprintstogoco@gmail.com if prompted. Do not use z.alex230@gmail.com.",
+    "Use the PawprintsCA admin fallback password login at /login if prompted; do not use Google OAuth or z.alex230@gmail.com.",
     "Required checks: match Etsy receipt/order ID to the PawprintsCA receipt ID, confirm upload URL belongs to this order, confirm no duplicate initial upload message was already sent, and stop on refunds/cancellations/cases/non-standard order uncertainty.",
     "After completing or safely skipping/failing, POST JSON to the callback URL with orderId, receiptId, status ('sent', 'failed', or 'skipped'), reason, and token.",
     `Callback URL: ${callbackUrl}`,
