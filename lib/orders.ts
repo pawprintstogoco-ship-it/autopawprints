@@ -90,7 +90,11 @@ function getLatestBySlot<T extends { portraitSlotId: string | null; createdAt: D
 }
 
 function mapCompositionQaStatus(report: PosterCompositionQaReport) {
-  return report.warnings.some((warning) => warning === "pet_too_small_or_sparse")
+  return report.warnings.some((warning) =>
+    ["pet_too_small_or_sparse", "pet_sits_too_low", "pet_visual_center_too_low"].includes(
+      warning
+    )
+  )
     ? RenderQaStatus.FAIL
     : report.warnings.length > 0
     ? RenderQaStatus.WARNING

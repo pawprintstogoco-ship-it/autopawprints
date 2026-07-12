@@ -134,6 +134,7 @@ const POSTER_QA_MAX_PET_TOP_Y = 830;
 const POSTER_QA_MAX_PET_VISUAL_CENTER_Y = 1660;
 const MAX_POSTER_QA_PORTRAIT_SHIFT = 56;
 const MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT = 84;
+const MAX_POSTER_COMPOSITION_CORRECTION_PASSES = 3;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -313,7 +314,7 @@ async function buildPosterPng(
   };
   const draftPoster = await composePosterPng(compositionInput);
   const draftQa = await analyzePosterComposition(draftPoster, background.fill);
-  const corrections = calculatePosterCompositionCorrections(draftQa);
+  let corrections = calculatePosterCompositionCorrections(draftQa);
 
   logPosterCompositionQa("draft", draftQa, corrections);
 
@@ -324,10 +325,22 @@ async function buildPosterPng(
     };
   }
 
-  const correctedPoster = await composePosterPng(compositionInput, corrections);
-  const correctedQa = await analyzePosterComposition(correctedPoster, background.fill);
+  let correctedPoster = draftPoster;
+  let correctedQa = draftQa;
+  let cumulativeCorrections: PosterCompositionOverrides = {};
 
-  logPosterCompositionQa("corrected", correctedQa);
+  for (
+    let pass = 1;
+    pass <= MAX_POSTER_COMPOSITION_CORRECTION_PASSES && hasPosterCompositionCorrections(corrections);
+    pass += 1
+  ) {
+    cumulativeCorrections = mergePosterCompositionCorrections(cumulativeCorrections, corrections);
+    correctedPoster = await composePosterPng(compositionInput, cumulativeCorrections);
+    correctedQa = await analyzePosterComposition(correctedPoster, background.fill);
+    corrections = calculatePosterCompositionCorrections(correctedQa);
+
+    logPosterCompositionQa(`corrected-${pass}`, correctedQa, corrections);
+  }
 
   return {
     buffer: correctedPoster,
@@ -531,8 +544,32 @@ function hasPosterCompositionCorrections(corrections: PosterCompositionOverrides
   return Boolean(corrections.portraitOffsetX || corrections.portraitOffsetY);
 }
 
+function mergePosterCompositionCorrections(
+  current: PosterCompositionOverrides,
+  next: PosterCompositionOverrides
+): PosterCompositionOverrides {
+  return {
+    portraitOffsetX:
+      current.portraitOffsetX || next.portraitOffsetX
+        ? clamp(
+            Math.round((current.portraitOffsetX ?? 0) + (next.portraitOffsetX ?? 0)),
+            -MAX_POSTER_QA_PORTRAIT_SHIFT,
+            MAX_POSTER_QA_PORTRAIT_SHIFT
+          )
+        : undefined,
+    portraitOffsetY:
+      current.portraitOffsetY || next.portraitOffsetY
+        ? clamp(
+            Math.round((current.portraitOffsetY ?? 0) + (next.portraitOffsetY ?? 0)),
+            -MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT,
+            0
+          )
+        : undefined
+  };
+}
+
 function logPosterCompositionQa(
-  label: "draft" | "corrected",
+  label: string,
   report: PosterCompositionQaReport,
   corrections: PosterCompositionOverrides = {}
 ) {
