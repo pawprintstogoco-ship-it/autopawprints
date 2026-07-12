@@ -1115,16 +1115,7 @@ export async function storeCustomerUpload({
   });
 
   if (result.renderJob) {
-    // Always use the queue. This allows the Vercel request to finish in ~2 seconds
-    // while the dedicated worker handles the 60-90s AI rendering in the background.
-    await enqueueRenderJob(result.renderJob.id);
-
-    // Trigger GitHub Action to handle the rendering worker for free (bypassing Vercel timeouts)
-    try {
-      await triggerGitHubRender(result.renderJob.id);
-    } catch (error) {
-      console.error("[render] failed to trigger github worker", error);
-    }
+    await dispatchRenderJob(result.renderJob.id);
   }
 
   return {
@@ -1171,6 +1162,47 @@ async function triggerGitHubRender(renderJobId: string) {
   }
 
   console.log(`[render] successfully triggered github worker for job ${renderJobId}`);
+}
+
+async function dispatchRenderJob(renderJobId: string) {
+  const enqueueResult = await settleWithTimeout(
+    enqueueRenderJob(renderJobId),
+    getRenderQueueEnqueueTimeoutMs(),
+    new Error("Render queue enqueue timed out")
+  );
+
+  if (!enqueueResult.ok) {
+    console.error("[render] failed to enqueue render job", enqueueResult.error);
+  }
+
+  try {
+    await triggerGitHubRender(renderJobId);
+  } catch (error) {
+    console.error("[render] failed to trigger github worker", error);
+  }
+}
+
+async function settleWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutError: Error
+): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> {
+  try {
+    const value = await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(timeoutError), timeoutMs);
+      })
+    ]);
+    return { ok: true, value };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function getRenderQueueEnqueueTimeoutMs() {
+  const timeoutMs = Number(process.env.RENDER_QUEUE_ENQUEUE_TIMEOUT_MS ?? 5000);
+  return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000;
 }
 
 export async function processRenderJob(renderJobId: string) {
@@ -1756,12 +1788,7 @@ export async function rerenderOrder(
   if (shouldProcessInline) {
     await processRenderJob(renderJob.id);
   } else {
-    await enqueueRenderJob(renderJob.id);
-    try {
-      await triggerGitHubRender(renderJob.id);
-    } catch (error) {
-      console.error("[render] failed to trigger github worker", error);
-    }
+    await dispatchRenderJob(renderJob.id);
   }
   return {
     renderJob,
