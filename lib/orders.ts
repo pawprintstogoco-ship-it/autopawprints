@@ -1165,6 +1165,15 @@ async function triggerGitHubRender(renderJobId: string) {
 }
 
 async function dispatchRenderJob(renderJobId: string) {
+  if (isGitHubRenderConfigured()) {
+    try {
+      await triggerGitHubRender(renderJobId);
+      return;
+    } catch (error) {
+      console.error("[render] failed to trigger github worker", error);
+    }
+  }
+
   const enqueueResult = await settleWithTimeout(
     enqueueRenderJob(renderJobId),
     getRenderQueueEnqueueTimeoutMs(),
@@ -1175,11 +1184,20 @@ async function dispatchRenderJob(renderJobId: string) {
     console.error("[render] failed to enqueue render job", enqueueResult.error);
   }
 
+  if (!isGitHubRenderConfigured()) {
+    return;
+  }
+
   try {
     await triggerGitHubRender(renderJobId);
   } catch (error) {
-    console.error("[render] failed to trigger github worker", error);
+    console.error("[render] failed to trigger github worker after queue fallback", error);
   }
+}
+
+function isGitHubRenderConfigured() {
+  const { GITHUB_PAT, GITHUB_REPO_OWNER, GITHUB_REPO_NAME } = process.env;
+  return Boolean(GITHUB_PAT && GITHUB_REPO_OWNER && GITHUB_REPO_NAME);
 }
 
 async function settleWithTimeout<T>(
