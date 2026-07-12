@@ -353,6 +353,11 @@ async function composePosterPng(
   input: PosterCompositionInput,
   overrides: PosterCompositionOverrides = {}
 ) {
+  const portraitOffsetY = Math.round(overrides.portraitOffsetY ?? 0);
+  const portraitForComposition =
+    portraitOffsetY < 0
+      ? await extendPortraitBottomForCompositionShift(input.cleanedPortrait, Math.abs(portraitOffsetY))
+      : input.cleanedPortrait;
   const posterBackground = Buffer.from(`
     <svg width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="${input.backgroundFill}"/>
@@ -370,9 +375,9 @@ async function composePosterPng(
     .composite([
       { input: posterBackground },
       {
-        input: input.cleanedPortrait,
+        input: portraitForComposition,
         left: input.portraitLeft + Math.round(overrides.portraitOffsetX ?? 0),
-        top: input.portraitTop + Math.round(overrides.portraitOffsetY ?? 0)
+        top: input.portraitTop + portraitOffsetY
       },
       { input: input.titleSafeBand },
       ...input.titleOverlays.map((overlay) => ({
@@ -1851,6 +1856,88 @@ async function createBustBaseExtension(source: Buffer) {
         input: featheredChestExtension,
         left: chestLeft,
         top: chestTop
+      },
+      {
+        input: source,
+        left: 0,
+        top: 0
+      }
+    ])
+    .png()
+    .toBuffer();
+}
+
+async function extendPortraitBottomForCompositionShift(source: Buffer, shiftPx: number) {
+  const metadata = await sharp(source).metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  const extensionHeight = Math.ceil(shiftPx + PORTRAIT_BOTTOM_BLEED);
+
+  if (!width || !height || extensionHeight <= 0) {
+    return source;
+  }
+
+  const lowerBandHeight = Math.max(140, Math.min(280, Math.round(height * 0.18)));
+  const lowerBandTop = Math.max(0, height - lowerBandHeight);
+  const lowerBand = await sharp(source)
+    .extract({
+      left: 0,
+      top: lowerBandTop,
+      width,
+      height: lowerBandHeight
+    })
+    .resize(width, extensionHeight, {
+      fit: "fill",
+      position: "top"
+    })
+    .blur(2)
+    .modulate({
+      brightness: 1.01,
+      saturation: 0.94
+    })
+    .png()
+    .toBuffer();
+
+  const mask = Buffer.from(`
+    <svg width="${width}" height="${extensionHeight}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="compositionShiftFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="white" stop-opacity="0.34"/>
+          <stop offset="22%" stop-color="white" stop-opacity="0.72"/>
+          <stop offset="100%" stop-color="white" stop-opacity="1"/>
+        </linearGradient>
+      </defs>
+      <ellipse
+        cx="${Math.round(width * 0.5)}"
+        cy="${Math.round(extensionHeight * 0.58)}"
+        rx="${Math.round(width * 0.44)}"
+        ry="${Math.round(extensionHeight * 0.62)}"
+        fill="url(#compositionShiftFade)"
+      />
+    </svg>
+  `);
+
+  const featheredExtension = await sharp(lowerBand)
+    .composite([{ input: mask, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+
+  const overlap = Math.min(Math.round(lowerBandHeight * 0.58), Math.round(extensionHeight * 0.38));
+  const extendedHeight = height + extensionHeight - overlap;
+
+  return sharp({
+    create: {
+      width,
+      height: extendedHeight,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }
+  })
+    .composite([
+      {
+        input: featheredExtension,
+        left: 0,
+        top: height - overlap
       },
       {
         input: source,
