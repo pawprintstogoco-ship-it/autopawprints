@@ -87,6 +87,29 @@ describe("render layout", () => {
     expect(report.warnings).toContain("pet_visual_center_off");
     expect(corrections.portraitOffsetX).toBeLessThan(0);
   });
+
+  it("flags and corrects a portrait that sits too low in the poster field", async () => {
+    const background = "#dcecf7";
+    const poster = await sharp(
+      Buffer.from(`
+        <svg width="1800" height="2400" xmlns="http://www.w3.org/2000/svg">
+          <rect width="1800" height="2400" fill="${background}"/>
+          <rect x="760" y="220" width="280" height="100" fill="#4c382b"/>
+          <ellipse cx="900" cy="1660" rx="620" ry="740" fill="#fff8ef"/>
+        </svg>
+      `)
+    )
+      .png()
+      .toBuffer();
+
+    const report = await analyzePosterComposition(poster, background);
+    const corrections = calculatePosterCompositionCorrections(report);
+
+    expect(report.petTopY).toBeGreaterThan(830);
+    expect(report.warnings).toContain("pet_sits_too_low");
+    expect(corrections.portraitOffsetX).toBeUndefined();
+    expect(corrections.portraitOffsetY).toBeLessThan(0);
+  });
 });
 
 describe("portrait contour cleanup", () => {

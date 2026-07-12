@@ -55,12 +55,16 @@ type PosterCompositionInput = {
 
 type PosterCompositionOverrides = {
   portraitOffsetX?: number;
+  portraitOffsetY?: number;
 };
 
 export type PosterCompositionQaReport = {
   titleCenterDeltaPx: number | null;
   petBoundsCenterDeltaPx: number | null;
   petVisualCenterDeltaPx: number | null;
+  petTopY: number | null;
+  petBoundsCenterY: number | null;
+  petVisualCenterY: number | null;
   bottomContact: boolean;
   petCoverageRatio: number;
   warnings: string[];
@@ -126,7 +130,10 @@ const POSTER_QA_FOREGROUND_DISTANCE_THRESHOLD = 45;
 const POSTER_QA_CENTER_TOLERANCE_PX = 18;
 const POSTER_QA_BOTTOM_CONTACT_MIN_PIXELS = 18;
 const POSTER_QA_MIN_PET_COVERAGE_RATIO = 0.32;
+const POSTER_QA_MAX_PET_TOP_Y = 830;
+const POSTER_QA_MAX_PET_VISUAL_CENTER_Y = 1660;
 const MAX_POSTER_QA_PORTRAIT_SHIFT = 56;
+const MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT = 84;
 
 export async function analyzeImage(source: Buffer) {
   const image = sharp(source);
@@ -310,7 +317,7 @@ async function buildPosterPng(
 
   logPosterCompositionQa("draft", draftQa, corrections);
 
-  if (!corrections.portraitOffsetX) {
+  if (!hasPosterCompositionCorrections(corrections)) {
     return {
       buffer: draftPoster,
       qa: draftQa
@@ -351,7 +358,7 @@ async function composePosterPng(
       {
         input: input.cleanedPortrait,
         left: input.portraitLeft + Math.round(overrides.portraitOffsetX ?? 0),
-        top: input.portraitTop
+        top: input.portraitTop + Math.round(overrides.portraitOffsetY ?? 0)
       },
       { input: input.titleSafeBand },
       ...input.titleOverlays.map((overlay) => ({
@@ -389,15 +396,13 @@ export async function analyzePosterComposition(
         continue;
       }
 
-      const distance = colorChannelDistance(
-        {
-          r: data[index] ?? 0,
-          g: data[index + 1] ?? 0,
-          b: data[index + 2] ?? 0,
-          alpha
-        },
-        background
-      );
+      const pixel = {
+        r: data[index] ?? 0,
+        g: data[index + 1] ?? 0,
+        b: data[index + 2] ?? 0,
+        alpha
+      };
+      const distance = colorChannelDistance(pixel, background);
 
       if (distance <= POSTER_QA_FOREGROUND_DISTANCE_THRESHOLD) {
         continue;
@@ -406,7 +411,7 @@ export async function analyzePosterComposition(
       if (y < TITLE_SAFE_HEIGHT) {
         titleBounds.add(x, y, 255);
       } else if (y >= PORTRAIT_AREA_TOP) {
-        petBounds.add(x, y, alpha);
+        petBounds.add(x, y, getPosterPetVisualWeight(pixel, background));
         petPixelCount += 1;
 
         if (y >= info.height - 2) {
@@ -424,6 +429,13 @@ export async function analyzePosterComposition(
     : null;
   const petVisualCenterDeltaPx = petBounds.hasPixels()
     ? Number((petBounds.weightedCenterX() - centerX).toFixed(2))
+    : null;
+  const petTopY = petBounds.hasPixels() ? petBounds.minY() : null;
+  const petBoundsCenterY = petBounds.hasPixels()
+    ? Number(petBounds.boundsCenterY().toFixed(2))
+    : null;
+  const petVisualCenterY = petBounds.hasPixels()
+    ? Number(petBounds.weightedCenterY().toFixed(2))
     : null;
   const petCoverageRatio = Number(
     (petPixelCount / (info.width * Math.max(1, info.height - PORTRAIT_AREA_TOP))).toFixed(4)
@@ -449,6 +461,14 @@ export async function analyzePosterComposition(
     warnings.push("pet_not_bottom_anchored");
   }
 
+  if (petTopY !== null && petTopY > POSTER_QA_MAX_PET_TOP_Y) {
+    warnings.push("pet_sits_too_low");
+  }
+
+  if (petVisualCenterY !== null && petVisualCenterY > POSTER_QA_MAX_PET_VISUAL_CENTER_Y) {
+    warnings.push("pet_visual_center_too_low");
+  }
+
   if (petCoverageRatio < POSTER_QA_MIN_PET_COVERAGE_RATIO) {
     warnings.push("pet_too_small_or_sparse");
   }
@@ -457,6 +477,9 @@ export async function analyzePosterComposition(
     titleCenterDeltaPx,
     petBoundsCenterDeltaPx,
     petVisualCenterDeltaPx,
+    petTopY,
+    petBoundsCenterY,
+    petVisualCenterY,
     bottomContact,
     petCoverageRatio,
     warnings
@@ -467,18 +490,45 @@ export function calculatePosterCompositionCorrections(
   report: PosterCompositionQaReport
 ): PosterCompositionOverrides {
   const portraitDelta = report.petVisualCenterDeltaPx ?? report.petBoundsCenterDeltaPx ?? 0;
+  const portraitOffsetX =
+    Math.abs(portraitDelta) > POSTER_QA_CENTER_TOLERANCE_PX
+      ? clamp(
+          -Math.round(portraitDelta),
+          -MAX_POSTER_QA_PORTRAIT_SHIFT,
+          MAX_POSTER_QA_PORTRAIT_SHIFT
+        )
+      : undefined;
+  const topCorrection =
+    report.petTopY !== null && report.petTopY > POSTER_QA_MAX_PET_TOP_Y
+      ? POSTER_QA_MAX_PET_TOP_Y - report.petTopY
+      : 0;
+  const visualCenterCorrection =
+    report.petVisualCenterY !== null &&
+    report.petVisualCenterY > POSTER_QA_MAX_PET_VISUAL_CENTER_Y
+      ? POSTER_QA_MAX_PET_VISUAL_CENTER_Y - report.petVisualCenterY
+      : 0;
+  const portraitOffsetY = Math.min(topCorrection, visualCenterCorrection);
 
-  if (Math.abs(portraitDelta) <= POSTER_QA_CENTER_TOLERANCE_PX) {
+  if (!portraitOffsetX && !portraitOffsetY) {
     return {};
   }
 
   return {
-    portraitOffsetX: clamp(
-      -Math.round(portraitDelta),
-      -MAX_POSTER_QA_PORTRAIT_SHIFT,
-      MAX_POSTER_QA_PORTRAIT_SHIFT
-    )
+    ...(portraitOffsetX ? { portraitOffsetX } : {}),
+    ...(portraitOffsetY
+      ? {
+          portraitOffsetY: clamp(
+            Math.round(portraitOffsetY),
+            -MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT,
+            0
+          )
+        }
+      : {})
   };
+}
+
+function hasPosterCompositionCorrections(corrections: PosterCompositionOverrides) {
+  return Boolean(corrections.portraitOffsetX || corrections.portraitOffsetY);
 }
 
 function logPosterCompositionQa(
@@ -1145,24 +1195,39 @@ export function getPosterLayoutConfig() {
 function createPixelAccumulator() {
   let minX = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
   let weightedXTotal = 0;
+  let weightedYTotal = 0;
   let weightTotal = 0;
 
   return {
-    add(x: number, _y: number, weight: number) {
+    add(x: number, y: number, weight: number) {
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
       weightedXTotal += x * weight;
+      weightedYTotal += y * weight;
       weightTotal += weight;
     },
     hasPixels() {
       return weightTotal > 0;
     },
+    minY() {
+      return minY;
+    },
     boundsCenterX() {
       return (minX + maxX) / 2;
     },
+    boundsCenterY() {
+      return (minY + maxY) / 2;
+    },
     weightedCenterX() {
       return weightTotal ? weightedXTotal / weightTotal : 0;
+    },
+    weightedCenterY() {
+      return weightTotal ? weightedYTotal / weightTotal : 0;
     }
   };
 }
@@ -1191,6 +1256,14 @@ function parseHexColor(value: string): RgbaColor {
 
 function colorChannelDistance(a: RgbaColor, b: RgbaColor) {
   return Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+}
+
+function getPosterPetVisualWeight(pixel: RgbaColor, background: RgbaColor) {
+  const distance = colorChannelDistance(pixel, background);
+  const brightness = (pixel.r + pixel.g + pixel.b) / 3;
+  const darkness = Math.max(0, 255 - brightness);
+  const chroma = Math.max(pixel.r, pixel.g, pixel.b) - Math.min(pixel.r, pixel.g, pixel.b);
+  return Math.max(1, pixel.alpha * (0.35 + distance / 120 + darkness / 255 + chroma / 420));
 }
 
 function clamp(value: number, min: number, max: number) {
