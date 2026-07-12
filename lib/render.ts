@@ -133,7 +133,8 @@ const POSTER_QA_MIN_PET_COVERAGE_RATIO = 0.32;
 const POSTER_QA_MAX_PET_TOP_Y = 830;
 const POSTER_QA_MAX_PET_VISUAL_CENTER_Y = 1660;
 const MAX_POSTER_QA_PORTRAIT_SHIFT = 56;
-const MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT = 84;
+const MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT_PER_PASS = 140;
+const MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT = 260;
 const MAX_POSTER_COMPOSITION_CORRECTION_PASSES = 3;
 
 export async function analyzeImage(source: Buffer) {
@@ -532,7 +533,7 @@ export function calculatePosterCompositionCorrections(
       ? {
           portraitOffsetY: clamp(
             Math.round(portraitOffsetY),
-            -MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT,
+            -MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT_PER_PASS,
             0
           )
         }

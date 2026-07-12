@@ -95,7 +95,7 @@ describe("render layout", () => {
         <svg width="1800" height="2400" xmlns="http://www.w3.org/2000/svg">
           <rect width="1800" height="2400" fill="${background}"/>
           <rect x="760" y="220" width="280" height="100" fill="#4c382b"/>
-          <ellipse cx="900" cy="1660" rx="620" ry="740" fill="#fff8ef"/>
+          <ellipse cx="900" cy="1700" rx="620" ry="740" fill="#fff8ef"/>
         </svg>
       `)
     )
@@ -108,7 +108,7 @@ describe("render layout", () => {
     expect(report.petTopY).toBeGreaterThan(830);
     expect(report.warnings).toContain("pet_sits_too_low");
     expect(corrections.portraitOffsetX).toBeUndefined();
-    expect(corrections.portraitOffsetY).toBeLessThan(0);
+    expect(corrections.portraitOffsetY).toBeLessThanOrEqual(-120);
   });
 });
 
