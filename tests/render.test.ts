@@ -110,6 +110,22 @@ describe("render layout", () => {
     expect(corrections.portraitOffsetX).toBeUndefined();
     expect(corrections.portraitOffsetY).toBeLessThanOrEqual(-120);
   });
+
+  it("keeps correcting when the low portrait delta is subpixel", () => {
+    const corrections = calculatePosterCompositionCorrections({
+      titleCenterDeltaPx: 0,
+      petBoundsCenterDeltaPx: 0,
+      petVisualCenterDeltaPx: 0,
+      petTopY: 830,
+      petBoundsCenterY: 1614.5,
+      petVisualCenterY: 1660.25,
+      bottomContact: true,
+      petCoverageRatio: 0.39,
+      warnings: ["pet_visual_center_too_low"]
+    });
+
+    expect(corrections.portraitOffsetY).toBe(-1);
+  });
 });
 
 describe("portrait contour cleanup", () => {

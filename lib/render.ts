@@ -522,6 +522,8 @@ export function calculatePosterCompositionCorrections(
       ? POSTER_QA_MAX_PET_VISUAL_CENTER_Y - report.petVisualCenterY
       : 0;
   const portraitOffsetY = Math.min(topCorrection, visualCenterCorrection);
+  const roundedPortraitOffsetY =
+    portraitOffsetY < 0 ? Math.floor(portraitOffsetY) : Math.ceil(portraitOffsetY);
 
   if (!portraitOffsetX && !portraitOffsetY) {
     return {};
@@ -532,7 +534,7 @@ export function calculatePosterCompositionCorrections(
     ...(portraitOffsetY
       ? {
           portraitOffsetY: clamp(
-            Math.round(portraitOffsetY),
+            roundedPortraitOffsetY,
             -MAX_POSTER_QA_PORTRAIT_VERTICAL_SHIFT_PER_PASS,
             0
           )
